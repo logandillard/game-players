@@ -24,5 +24,4 @@ public class MNISTApp {
         double result = trainer.evaluatePredictor(testData, predictor);
         System.out.println("Evaluation result: " + result);
     }
-    
 }
