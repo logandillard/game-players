@@ -4,11 +4,11 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 
-import com.dillard.nn.RefacMLP;
+import com.dillard.nn.OldBrokenNeuralNetwork;
 
 
 public abstract class ABNNPlayer<G extends Game> extends ABPruningPlayer<G> implements NNPlayer<G> {
-	protected RefacMLP neuralNet;
+	protected OldBrokenNeuralNetwork neuralNet;
 	private String modelFile;
 	
 	public ABNNPlayer (int turnDepthLim, String modelFile, boolean forTraining) throws Exception {
@@ -29,7 +29,7 @@ public abstract class ABNNPlayer<G extends Game> extends ABPruningPlayer<G> impl
 	
 	public void loadModel() throws IOException, ClassNotFoundException {
 		ObjectInputStream ois = new ObjectInputStream(new FileInputStream(modelFile));
-		neuralNet = (RefacMLP)ois.readObject();
+		neuralNet = (OldBrokenNeuralNetwork)ois.readObject();
 		ois.close();
 	}
 }

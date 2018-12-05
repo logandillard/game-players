@@ -4,7 +4,7 @@ import java.io.Serializable;
 import java.util.Random;
 
 // Multi-layered perceptron
-public class RefacMLP implements Serializable, TDLearningNN {
+public class OldBrokenNeuralNetwork implements Serializable, TDLearningNN {
 	static final long serialVersionUID = 1;
 	static final double MOMENTUM_FACTOR = .1;
 	static final boolean SIGMOID_OUTPUT = false;
@@ -30,13 +30,13 @@ public class RefacMLP implements Serializable, TDLearningNN {
 
 
 	// Constructor with random initial weights
-	public RefacMLP(int[] numUnitsByLayer) {
+	public OldBrokenNeuralNetwork(int[] numUnitsByLayer) {
 		useRandomInitialWeights = true;
 		rand = new Random();
 		initialize(numUnitsByLayer);
 	}
 	// Constructor specifying a default initial weight
-	public RefacMLP(int[] numUnitsByLayer, double initialWeight) {
+	public OldBrokenNeuralNetwork(int[] numUnitsByLayer, double initialWeight) {
 		useRandomInitialWeights = false;
 		this.initialWeight = initialWeight;
 		initialize(numUnitsByLayer);
