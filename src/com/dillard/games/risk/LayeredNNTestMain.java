@@ -1,10 +1,11 @@
 package com.dillard.games.risk;
 
+import games.ActivationFunctionTanH;
 import games.LayeredNN;
 
 public class LayeredNNTestMain {
     public static void main(String[] args) {
-        LayeredNN nn = new LayeredNN(new int[] {2, 3, 1}, 0.1, 1.0, 0, 0.0001, 0.2);
+        LayeredNN nn = new LayeredNN(new int[] {2, 3, 1}, new ActivationFunctionTanH(), 0.1, 1.0, 0, 0.0001, 0.2);
         nn.reset();
         
         for (int e=0; e<10; e++) {

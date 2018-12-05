@@ -3,15 +3,19 @@ package com.dillard.mnist;
 import java.util.Arrays;
 import java.util.List;
 
+import games.ActivationFunctionTanH;
 import games.LayeredNN;
+import games.WeightInitializerGaussianFixedVariance;
 
 public class MNISTNNPredictor implements MNISTPredictor {
     private static final int NUM_OUTPUTS = 10;
     private LayeredNN nn;
     
     public MNISTNNPredictor() {
-        nn = new LayeredNN(new int[] {49, 15, NUM_OUTPUTS},  
-                0.01,    // learning rate 
+        nn = new LayeredNN(new int[] {196, 15, NUM_OUTPUTS},  
+                new ActivationFunctionTanH(),
+                new WeightInitializerGaussianFixedVariance(1.0/196.0),
+                0.001,    // learning rate 
                 0.9,     // ignored
                 0.0001,  // l2 regularization
                 0.0,     // l1 regularization
@@ -79,16 +83,6 @@ public class MNISTNNPredictor implements MNISTPredictor {
         }
         return errors;
     }
-    
-    private double[] errorSignum(double[] preds, int label) {
-        double[] errors = new double[preds.length];
-        for (int i=0; i<errors.length; i++) {
-            errors[i] = i == label 
-                    ? 1.0
-                    : -1.0;
-        }
-        return errors;
-    }
 
     private double[] toProbDist(double[] preds) {
         double sum = 0;
@@ -103,7 +97,7 @@ public class MNISTNNPredictor implements MNISTPredictor {
         return probs;
     }
     
-    private double[] correctOutputs(int label) {
+    private double[] correctOutputsForLabel(int label) {
         double[] correctOutput = new double[NUM_OUTPUTS];
         Arrays.fill(correctOutput, -1.0);
         correctOutput[label] = 1.0;
@@ -116,7 +110,7 @@ public class MNISTNNPredictor implements MNISTPredictor {
     }
 
     public static List<LabeledImage> preprocessData(List<LabeledImage> trainingData) {
-        ImageUtils.downsample7By7(trainingData);
+        ImageUtils.downsample14By14(trainingData);
         return trainingData;
     }
 

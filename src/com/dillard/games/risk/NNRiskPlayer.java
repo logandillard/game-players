@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import games.ActivationFunctionTanH;
 import games.LayeredNN;
 import games.TDLearningNN;
 
@@ -24,6 +25,7 @@ public final class NNRiskPlayer extends AbstractRiskPlayer {
     public NNRiskPlayer(String name) {
         super(name);
         this.net = new LayeredNN(new int[] {NUM_FEATURES, 10, 1}, 
+                new ActivationFunctionTanH(),
                 0.1,   // learning rate 
                 0.9,   // elig decay rate 
                 0,     // L2 regularization 

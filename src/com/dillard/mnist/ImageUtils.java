@@ -4,6 +4,12 @@ import java.util.List;
 
 public class ImageUtils {
 
+    public static void downsample14By14(List<LabeledImage> images) {
+        for (LabeledImage li : images) {
+            li.image = downsample(li.image, 2);
+        }
+    }
+    
     public static void downsample7By7(List<LabeledImage> images) {
         for (LabeledImage li : images) {
             li.image = downsample(li.image, 4);

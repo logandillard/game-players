@@ -7,9 +7,9 @@ public class MNISTTrainer {
     public MNISTPredictor trainPredictor(List<LabeledImage> trainingData) {        
         MNISTNNPredictor nn = new MNISTNNPredictor();
         
-        for (int i=0; i<10; i++) {
+        for (int i=0; i<40; i++) {
             trainOneIteration(trainingData, nn);
-            System.out.println(accuracy(trainingData, nn));
+            System.out.println(String.format("%.4f", accuracy(trainingData, nn)));
         }
         
         return nn;

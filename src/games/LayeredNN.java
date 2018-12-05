@@ -6,8 +6,10 @@ public class LayeredNN implements TDLearningNN, Serializable {
     private static final long serialVersionUID = 1L;
     private NNLayerFullyConnected[] layers;
     
-    public LayeredNN(int[] unitsByLayer, 
-            double learningRate, double eligDecay, double l2Regularization, double l1Regularization, double initialWeightRange) {
+    public LayeredNN(int[] unitsByLayer, ActivationFunction activationFunction,
+            WeightInitializer initializer, 
+            double learningRate, double eligDecay, 
+            double l2Regularization, double l1Regularization, double initialWeightRange) {
         if (unitsByLayer.length < 2) {
             throw new RuntimeException("Need at least 2 layers");
         }
@@ -15,7 +17,8 @@ public class LayeredNN implements TDLearningNN, Serializable {
         layers = new NNLayerFullyConnected[unitsByLayer.length - 1];
         for (int layer = 0; layer < unitsByLayer.length - 1; layer++) {
             layers[layer] = new NNLayerFullyConnected(unitsByLayer[layer], unitsByLayer[layer + 1], 
-                    learningRate, eligDecay, l2Regularization, l1Regularization, initialWeightRange);
+                    activationFunction, initializer,
+                    learningRate, eligDecay, l2Regularization, l1Regularization);
         }
     }
     
