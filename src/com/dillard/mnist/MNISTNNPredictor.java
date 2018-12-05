@@ -12,11 +12,10 @@ public class MNISTNNPredictor implements MNISTPredictor {
     private LayeredNN nn;
 
     public MNISTNNPredictor() {
-        nn = new LayeredNN(new int[] {196, 15, NUM_OUTPUTS},
+        nn = LayeredNN.buildFullyConnected(new int[] {196, 15, NUM_OUTPUTS},
                 new ActivationFunctionTanH(),
                 new WeightInitializerGaussianFixedVariance(1.0/196.0),
                 0.001,   // learning rate
-                0.9,     // ignored
                 0.0001,  // l2 regularization
                 0.0      // l1 regularization
                 );

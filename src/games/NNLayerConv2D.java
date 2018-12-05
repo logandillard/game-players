@@ -24,7 +24,7 @@ public class NNLayerConv2D implements Serializable {
     private double[] inputValues;
     private double[] outputValues;
     private final ActivationFunction activationFunction;
-    private ADAMOptimizerMatrix optimizer;
+    private final ADAMOptimizerMatrix optimizer;
 
     public NNLayerConv2D(int inputNumRows, int inputNumCols, int inputNumLayers,
             ActivationFunction activationFunction, WeightInitializer initializer,
@@ -146,7 +146,6 @@ public class NNLayerConv2D implements Serializable {
                                 double gradient = outputDerivative * inputCellValue;
                                 optimizer.update(weights, filter, layer*width*height + filterRow*width + filterCol, gradient, true);
 
-
                                 double currentWeight = weights[filter][layer*width*height + filterRow*width + filterCol];
                                 inputNodeGradient[layer*inputNumRows*inputNumCols + inputRow*inputNumCols + inputCol] +=
                                         outputDerivative * currentWeight;
@@ -168,11 +167,7 @@ public class NNLayerConv2D implements Serializable {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        for (int input=0; input<weights.length; input++) {
-            sb.append(Arrays.toString(weights[input]) + "\n");
-        }
-        return sb.toString();
+        return NNDiagnostics.weightsToString(weights);
     }
 
     public int getNumOutputs() {

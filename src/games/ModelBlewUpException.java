@@ -1,7 +1,8 @@
 package games;
 
 public class ModelBlewUpException extends RuntimeException {
-	public ModelBlewUpException() {
+    private static final long serialVersionUID = 1L;
+    public ModelBlewUpException() {
 		super();
 	}
 	public ModelBlewUpException(String msg) {

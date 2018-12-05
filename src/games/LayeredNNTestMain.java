@@ -2,7 +2,7 @@ package games;
 
 public class LayeredNNTestMain {
     public static void main(String[] args) {
-        LayeredNN nn = new LayeredNN(new int[] {2, 3, 1}, new ActivationFunctionTanH(),
+        LayeredNNTD nn = LayeredNNTD.buildFullyConnected(new int[] {2, 3, 1}, new ActivationFunctionTanH(),
                 new WeightInitializerGaussianFixedVariance(1.0/5.0),
                 0.1, 1.0, 0, 0.0001);
         nn.reset();

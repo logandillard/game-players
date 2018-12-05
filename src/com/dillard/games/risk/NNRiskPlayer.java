@@ -10,13 +10,13 @@ import java.util.List;
 import java.util.Set;
 
 import games.ActivationFunctionTanH;
-import games.LayeredNN;
+import games.LayeredNNTD;
 import games.TDLearningNN;
 import games.WeightInitializerGaussianFixedVariance;
 
 public final class NNRiskPlayer extends AbstractRiskPlayer {
     private static final int NUM_FEATURES = 43; // 471;
-    private LayeredNN net;
+    private LayeredNNTD net;
     private double lastScore = 0;
     private boolean haveMadeAMove = false;
     private boolean learningMode = false;
@@ -24,7 +24,7 @@ public final class NNRiskPlayer extends AbstractRiskPlayer {
 
     public NNRiskPlayer(String name) {
         super(name);
-        this.net = new LayeredNN(new int[] {NUM_FEATURES, 10, 1},
+        this.net = LayeredNNTD.buildFullyConnected(new int[] {NUM_FEATURES, 10, 1},
                 new ActivationFunctionTanH(),
                 new WeightInitializerGaussianFixedVariance(1.0/5.0),
                 0.1,   // learning rate
@@ -32,19 +32,11 @@ public final class NNRiskPlayer extends AbstractRiskPlayer {
                 0,     // L2 regularization
                 0.0001 // L1 regularization
                 );
-        setLearningParameters();
     }
 
-    public NNRiskPlayer(String name, LayeredNN net) {
+    public NNRiskPlayer(String name, LayeredNNTD net) {
         super(name);
         this.net = net;
-    }
-
-    public void setLearningParameters() {
-        net.setLearningRate(0.1);
-        net.setEligDecay(0.9);
-        net.setL2Regularization(0);
-        net.setL1Regularization(0.0001);
     }
 
     private double[] newFeatureArray() {
@@ -373,8 +365,7 @@ public final class NNRiskPlayer extends AbstractRiskPlayer {
 
     public void loadModel(String file) throws IOException, ClassNotFoundException {
         ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file));
-        net = (LayeredNN)ois.readObject();
+        net = (LayeredNNTD)ois.readObject();
         ois.close();
-        setLearningParameters();
     }
 }
