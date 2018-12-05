@@ -9,10 +9,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import games.ActivationFunctionTanH;
-import games.LayeredNNTD;
-import games.TDLearningNN;
-import games.WeightInitializerGaussianFixedVariance;
+import com.dillard.nn.ActivationFunctionTanH;
+import com.dillard.nn.LayeredNNTD;
+import com.dillard.nn.TDLearningNN;
+import com.dillard.nn.WeightInitializerGaussianFixedVariance;
 
 public final class NNRiskPlayer extends AbstractRiskPlayer {
     private static final int NUM_FEATURES = 43; // 471;

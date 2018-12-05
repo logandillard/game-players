@@ -3,9 +3,9 @@ package com.dillard.mnist;
 import java.util.Arrays;
 import java.util.List;
 
-import games.ActivationFunctionTanH;
-import games.LayeredNN;
-import games.WeightInitializerGaussianFixedVariance;
+import com.dillard.nn.ActivationFunctionTanH;
+import com.dillard.nn.LayeredNN;
+import com.dillard.nn.WeightInitializerGaussianFixedVariance;
 
 public class MNISTNNPredictor implements MNISTPredictor {
     private static final int NUM_OUTPUTS = 10;
