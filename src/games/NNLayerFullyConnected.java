@@ -3,7 +3,7 @@ package games;
 import java.io.Serializable;
 import java.util.Arrays;
 
-public class NNLayerFullyConnected implements Serializable {
+public class NNLayerFullyConnected implements NNLayer, Serializable {
     private static final long serialVersionUID = 1L;
     private final int numInputs;
     private final int numOutputs;
@@ -37,6 +37,7 @@ public class NNLayerFullyConnected implements Serializable {
         }
     }
 
+    @Override
     public double[] activate(double[] inputValues) {
         this.inputValues = inputValues;
         Arrays.fill(outputValues, 0.0);
@@ -59,6 +60,7 @@ public class NNLayerFullyConnected implements Serializable {
         return outputValues;
     }
 
+    @Override
     public double[] backprop(double[] errorGradient) {
         double[] inputNodeGradient = new double[numInputs];
 

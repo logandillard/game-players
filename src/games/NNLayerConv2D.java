@@ -3,7 +3,7 @@ package games;
 import java.io.Serializable;
 import java.util.Arrays;
 
-public class NNLayerConv2D implements Serializable {
+public class NNLayerConv2D implements NNLayer, Serializable {
     private static final long serialVersionUID = 1L;
     private final int numInputs;
     private final int inputNumRows;

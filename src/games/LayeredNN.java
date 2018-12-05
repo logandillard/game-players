@@ -4,7 +4,7 @@ import java.io.Serializable;
 
 public class LayeredNN implements Serializable {
     private static final long serialVersionUID = 1L;
-    private NNLayerFullyConnected[] layers;
+    private NNLayer[] layers;
 
     public static LayeredNN buildFullyConnected(int[] unitsByLayer, ActivationFunction activationFunction,
             WeightInitializer initializer,
@@ -13,7 +13,7 @@ public class LayeredNN implements Serializable {
             throw new RuntimeException("Need at least 2 layers");
         }
 
-        NNLayerFullyConnected[] layers = new NNLayerFullyConnected[unitsByLayer.length - 1];
+        NNLayer[] layers = new NNLayer[unitsByLayer.length - 1];
         for (int layer = 0; layer < unitsByLayer.length - 1; layer++) {
             layers[layer] = new NNLayerFullyConnected(unitsByLayer[layer], unitsByLayer[layer + 1],
                     activationFunction, initializer,
@@ -23,12 +23,12 @@ public class LayeredNN implements Serializable {
         return new LayeredNN(layers);
     }
 
-    public LayeredNN(NNLayerFullyConnected[] layers) {
+    public LayeredNN(NNLayer[] layers) {
         this.layers = layers;
     }
 
     public double[] activate(double[] inputValues) {
-        for (NNLayerFullyConnected layer : layers) {
+        for (NNLayer layer : layers) {
             inputValues = layer.activate(inputValues);
         }
         return inputValues;
@@ -44,7 +44,7 @@ public class LayeredNN implements Serializable {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        for (NNLayerFullyConnected layer : layers) {
+        for (NNLayer layer : layers) {
             sb.append(layer.toString() + "\n");
         }
         return sb.toString();

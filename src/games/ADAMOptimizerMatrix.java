@@ -1,7 +1,7 @@
 package games;
 
 /**
- * ADAM optimizer for a neural network weight matrix. Does ADAM SGD updates. Includes biases.
+ * ADAM optimizer for a neural network weight matrix. Does ADAM SGD updates. Not aware of biases.
  */
 public final class ADAMOptimizerMatrix {
     private double[][] adamM;
