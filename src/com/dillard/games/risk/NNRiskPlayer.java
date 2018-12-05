@@ -5,7 +5,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.text.DecimalFormat;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -13,6 +12,7 @@ import java.util.Set;
 import games.ActivationFunctionTanH;
 import games.LayeredNN;
 import games.TDLearningNN;
+import games.WeightInitializerGaussianFixedVariance;
 
 public final class NNRiskPlayer extends AbstractRiskPlayer {
     private static final int NUM_FEATURES = 43; // 471;
@@ -24,13 +24,13 @@ public final class NNRiskPlayer extends AbstractRiskPlayer {
 
     public NNRiskPlayer(String name) {
         super(name);
-        this.net = new LayeredNN(new int[] {NUM_FEATURES, 10, 1}, 
+        this.net = new LayeredNN(new int[] {NUM_FEATURES, 10, 1},
                 new ActivationFunctionTanH(),
-                0.1,   // learning rate 
-                0.9,   // elig decay rate 
-                0,     // L2 regularization 
-                0.0001,// L1 regularization
-                0.2    // initial weight range
+                new WeightInitializerGaussianFixedVariance(1.0/5.0),
+                0.1,   // learning rate
+                0.9,   // elig decay rate
+                0,     // L2 regularization
+                0.0001 // L1 regularization
                 );
         setLearningParameters();
     }
@@ -39,7 +39,7 @@ public final class NNRiskPlayer extends AbstractRiskPlayer {
         super(name);
         this.net = net;
     }
-    
+
     public void setLearningParameters() {
         net.setLearningRate(0.1);
         net.setEligDecay(0.9);
@@ -91,10 +91,10 @@ public final class NNRiskPlayer extends AbstractRiskPlayer {
             // from territory army count, to army count
             features[idx++] = from.getArmyCount();
             features[idx++] = to.getArmyCount();
-            
+
             // army count diff
             features[idx++] = from.getArmyCount() - to.getArmyCount();
-            
+
             // defending player num territories in continent, num armies in continent, num territories total, num cards
             RiskPlayer defender = to.getOwner();
             List<TerritoryState> defenderOwnedTerritories = state.ownedTerritories(defender);
@@ -370,7 +370,7 @@ public final class NNRiskPlayer extends AbstractRiskPlayer {
         oos.writeObject(net);
         oos.close();
     }
-    
+
     public void loadModel(String file) throws IOException, ClassNotFoundException {
         ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file));
         net = (LayeredNN)ois.readObject();

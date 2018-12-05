@@ -2,68 +2,66 @@ package games;
 
 import java.io.Serializable;
 import java.util.Arrays;
-import java.util.Random;
 
 public class NNLayerConv2D implements Serializable {
     private static final long serialVersionUID = 1L;
     private final int numInputs;
-    private final int rowLength;
+    private final int inputNumRows;
+    private final int inputNumCols;
+//    private final int inputNumLayers;
+    private final int numOutputs;
     private final int numFilters;
+    private final int numOutputsPerFilter;
+    private final int numOutputRowsPerFilter;
+    private final int numOutputColsPerFilter;
     private final int width;
-    private final int height; 
-    private final int stride; 
-    private final int padding; 
+    private final int height;
+    private final int depth;
+    private final int stride;
+    private final int padding;
     private final double paddingValue;
     private double[][] weights;
     private double[] inputValues;
     private double[] outputValues;
-    private double learningRate;
-    private double l2Regularization;
-    private double l1Regularization;
-    private Random rand;
-    private final double beta1 = 0.9;
-    private final double beta2 = 0.999;
-    private double beta1t = beta1;
-    private double beta2t = beta2;
-    private double[][] adamM;
-    private double[][] adamV;
-    static final double DEFAULT_INITIAL_WEIGHT_RANGE = 0.2;
-    private double initialWeightRange = DEFAULT_INITIAL_WEIGHT_RANGE;
     private final ActivationFunction activationFunction;
+    private ADAMOptimizerMatrix optimizer;
 
-    public NNLayerConv2D(int numInputs, int rowLength, int numFilters, 
+    public NNLayerConv2D(int inputNumRows, int inputNumCols, int inputNumLayers,
             ActivationFunction activationFunction, WeightInitializer initializer,
-            int width, int height, int stride, int padding, double paddingValue, 
-            double learningRate, double l2Regularization, double l1Regularization, double initialWeightRange) {
-        this.numInputs = numInputs;
-        this.rowLength = rowLength;
+            int numFilters, int width, int height, int depth, int stride, int padding, double paddingValue,
+            double learningRate, double l2Regularization, double l1Regularization) {
+        this.inputNumRows = inputNumRows;
+        this.inputNumCols = inputNumCols;
+//        this.inputNumLayers = inputNumLayers;
+        this.numInputs = inputNumRows * inputNumCols * inputNumLayers;
+
         this.numFilters = numFilters;
         this.activationFunction = activationFunction;
-        
+
         //  (W − F + 2P)/ S + 1
-        int inputHeight = numInputs / rowLength;
-        int numOutputsPerFilterWidth = ((rowLength - width + 2*padding) / stride) + 1;
-        int numOutputsPerFilterHeight = ((inputHeight - height + 2*padding) / stride) + 1;
-        
-        
+        numOutputRowsPerFilter = ((inputNumRows - height + 2*padding) / stride) + 1;
+        numOutputColsPerFilter = ((inputNumCols - width + 2*padding) / stride) + 1;
+        numOutputsPerFilter = numOutputColsPerFilter * numOutputRowsPerFilter;
+        numOutputs = numOutputsPerFilter * numFilters;
+
         this.width = width;
         this.height = height;
+        this.depth = depth;
         this.stride = stride;
         this.padding = padding;
         this.paddingValue = paddingValue;
-        
-        this.learningRate = learningRate;        
-        this.l2Regularization = l2Regularization;
-        this.l1Regularization = l1Regularization;
-        
-        weights = new double[numInputs + 1][numOutputs]; // + 1 for biases
-        adamM = new double[numInputs + 1][numOutputs]; // + 1 for biases
-        adamV = new double[numInputs + 1][numOutputs]; // + 1 for biases
+
+        if (inputNumLayers != depth) {
+            // this means that they shouldn't be different parameters. but how to name them clearly?
+            throw new RuntimeException();
+        }
+
+        optimizer = new ADAMOptimizerMatrix(numFilters, width * height * depth + 1,
+                learningRate, l2Regularization, l1Regularization);
+        weights = new double[numFilters][width * height * depth + 1]; // + 1 for biases
         outputValues = new double[numOutputs];
-        
+
         // initialize weights randomly
-        this.initialWeightRange = initialWeightRange;
-        rand = new Random(System.currentTimeMillis());
         initializeWeights(initializer);
     }
 
@@ -74,85 +72,101 @@ public class NNLayerConv2D implements Serializable {
             }
         }
     }
-    
-    private double nextInitialWeight() {
-        return ((rand.nextDouble()* initialWeightRange) - (initialWeightRange/2.0));
-    }
-        
-    public double[] activate(double[] inputValues) {
+
+    public double[] activate(final double[] inputValues) {
         this.inputValues = inputValues;
         Arrays.fill(outputValues, 0.0);
-        for (int input=0; input<numInputs; input++) {
-            if (inputValues[input] == 0.0) {
-                continue;
+        double[][] filterOutputs = new double[numFilters][];
+
+        for (int filter=0; filter<weights.length; filter++) {
+
+            double[] filterWeights = weights[filter];
+            double[] filterOutput = new double[numOutputsPerFilter];
+            int filterOutputIdx = 0;
+            for (int startRow=0 - padding; startRow<inputNumCols + padding - height; startRow += stride) {
+                for (int startCol=0 - padding; startCol<inputNumCols + padding - width; startCol += stride) {
+
+                    double filterValue = 0;
+                    for (int filterRow = 0; filterRow<height; filterRow++) {
+                        int inputRow = filterRow + startRow;
+                        for (int filterCol = 0; filterCol<width; filterCol++) {
+                            int inputCol = filterCol + startCol;
+                            for (int layer=0; layer<depth; layer++) {
+                                double inputCellValue = paddingValue;
+                                if (inputRow >= 0 && inputCol >= 0 && inputRow < inputNumRows && inputCol < inputNumCols) {
+                                    inputCellValue = inputValues[layer*inputNumRows*inputNumCols + inputRow*inputNumCols + inputCol];
+                                }
+
+                                filterValue += filterWeights[layer*width*height + filterRow*width + filterCol] * inputCellValue;
+                            }
+                        }
+                    }
+
+                    filterOutput[filterOutputIdx] = activationFunction.activate(filterValue + filterWeights[depth*width*height]); // include the bias
+                    filterOutputIdx++;
+                }
             }
-            for (int output=0; output<numOutputs; output++) {
-                outputValues[output] += inputValues[input] * weights[input][output];
-            }
+            filterOutputs[filter] = filterOutput;
+            // Copy filter outputs into the single output array
+            System.arraycopy(filterOutput, 0,
+                    outputValues, numOutputsPerFilter * filter,
+                    filterOutput.length);
         }
-        // biases
-        for (int output=0; output<numOutputs; output++) {
-            outputValues[output] += weights[numInputs][output];
-        }
-        // link function
-        for (int output=0; output<numOutputs; output++) {
-            outputValues[output] = activationFunction.activate(outputValues[output]);
-        }
+
         return outputValues;
     }
-    
+
     public double[] backprop(double[] errorGradient) {
         double[] inputNodeGradient = new double[numInputs];
 
-        double[] outputDerivative = new double[numOutputs];
+        double[] outputDerivatives = new double[errorGradient.length];
         for (int output=0; output<numOutputs; output++) {
-            outputDerivative[output] = errorGradient[output] * activationFunction.derivative(outputValues[output]);
+            outputDerivatives[output] = errorGradient[output] * activationFunction.derivative(outputValues[output]);
         }
-        
-        for (int input=0; input<numInputs; input++) {
-            for (int output=0; output<numOutputs; output++) {
-                double gradient = inputValues[input] * outputDerivative[output];
 
-                // ADAM update
-                adamUpdateWeight(input, output, gradient);
-                
-                // regularization
-                double currentWeight = weights[input][output];
-                weights[input][output] += learningRate * (
-                    - (currentWeight * l2Regularization)
-                    - (l1Regularization * Math.signum(currentWeight)));
-                
-                // sum the derivative of the output with respect to the input for a previous layer to use
-                inputNodeGradient[input] += outputDerivative[output] * currentWeight; // TODO update after regularization?
+        for (int filter=0; filter<numFilters; filter++) {
+
+            for (int startRow=0 - padding, outputRow=0; startRow<inputNumCols + padding - height; startRow += stride, outputRow++) {
+                for (int startCol=0 - padding, outputCol=0; startCol<inputNumCols + padding - width; startCol += stride, outputCol++) {
+
+                    double outputDerivative = outputDerivatives[filter*numOutputRowsPerFilter*numOutputColsPerFilter +
+                                                                outputRow*numOutputColsPerFilter + outputCol];
+
+                    for (int filterRow = 0; filterRow<height; filterRow++) {
+                        int inputRow = filterRow + startRow;
+                        for (int filterCol = 0; filterCol<width; filterCol++) {
+                            int inputCol = filterCol + startCol;
+
+                            for (int layer=0; layer<depth; layer++) {
+
+                                double inputCellValue = paddingValue;
+                                if (inputRow >= 0 && inputCol >= 0 && inputRow < inputNumRows && inputCol < inputNumCols) {
+                                    inputCellValue = inputValues[layer*inputNumRows*inputNumCols + inputRow*inputNumCols + inputCol];
+                                }
+                                double gradient = outputDerivative * inputCellValue;
+                                optimizer.update(weights, filter, layer*width*height + filterRow*width + filterCol, gradient, true);
+
+
+                                double currentWeight = weights[filter][layer*width*height + filterRow*width + filterCol];
+                                inputNodeGradient[layer*inputNumRows*inputNumCols + inputRow*inputNumCols + inputCol] +=
+                                        outputDerivative * currentWeight;
+                            }
+                        }
+                    }
+
+                    // biases
+                    optimizer.update(weights, filter, depth*width*height, outputDerivative, false);
+                }
             }
+
         }
-        
-        // biases
-        for (int output=0; output<numOutputs; output++) {
-            // ADAM update
-            adamUpdateWeight(numInputs, output, outputDerivative[output]);
-            // no regularization on biases
-        }
-        
-        beta1t *= beta1;
-        beta2t *= beta2;
-        
+
+        optimizer.incrementIteration();
+
         return inputNodeGradient;
     }
-    
-    private void adamUpdateWeight(int input, int output, double gradient) {
-        // ADAM update
-        adamM[input][output] = beta1 * adamM[input][output] + 
-                (1.0 - beta1) * gradient;
-        adamV[input][output] = beta2 * adamV[input][output] + 
-                (1.0 - beta2) * gradient * gradient;
-        
-        double adjustedM = adamM[input][output] / (1.0 - beta1t);
-        double adjustedV = adamV[input][output] / (1.0 - beta2t);
-        
-        weights[input][output] += learningRate * (adjustedM / (Math.sqrt(adjustedV) + 0.00000001));
-    }
-        
+
+    @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         for (int input=0; input<weights.length; input++) {
@@ -161,27 +175,7 @@ public class NNLayerConv2D implements Serializable {
         return sb.toString();
     }
 
-    public double getLearningRate() {
-        return learningRate;
-    }
-
-    public void setLearningRate(double learningRate) {
-        this.learningRate = learningRate;
-    }
-
-    public double getL2Regularization() {
-        return l2Regularization;
-    }
-
-    public void setL2Regularization(double l2Regularization) {
-        this.l2Regularization = l2Regularization;
-    }
-
-    public double getL1Regularization() {
-        return l1Regularization;
-    }
-
-    public void setL1Regularization(double l1Regularization) {
-        this.l1Regularization = l1Regularization;
+    public int getNumOutputs() {
+        return numOutputs;
     }
 }

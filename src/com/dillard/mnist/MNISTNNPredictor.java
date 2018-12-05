@@ -10,16 +10,16 @@ import games.WeightInitializerGaussianFixedVariance;
 public class MNISTNNPredictor implements MNISTPredictor {
     private static final int NUM_OUTPUTS = 10;
     private LayeredNN nn;
-    
+
     public MNISTNNPredictor() {
-        nn = new LayeredNN(new int[] {196, 15, NUM_OUTPUTS},  
+        nn = new LayeredNN(new int[] {196, 15, NUM_OUTPUTS},
                 new ActivationFunctionTanH(),
                 new WeightInitializerGaussianFixedVariance(1.0/196.0),
-                0.001,    // learning rate 
+                0.001,   // learning rate
                 0.9,     // ignored
                 0.0001,  // l2 regularization
-                0.0,     // l1 regularization
-                0.1);    // initial weight range
+                0.0      // l1 regularization
+                );
     }
 
     @Override
@@ -51,33 +51,33 @@ public class MNISTNNPredictor implements MNISTPredictor {
         }
         return features;
     }
-    
+
     public double[] logError(double[] preds, int label) {
         double[] probDist = toProbDist(preds);
         double[] errors = new double[preds.length];
         for (int i=0; i<errors.length; i++) {
-            errors[i] = i == label 
+            errors[i] = i == label
                     ? -Math.log(probDist[i])
                     : Math.log(1.0 - probDist[i]);
         }
         return errors;
     }
-    
+
     private double[] logErrorDerivative(double[] preds, int label) {
         double[] probDist = toProbDist(preds);
         double[] errors = new double[preds.length];
         for (int i=0; i<errors.length; i++) {
-            errors[i] = i == label 
+            errors[i] = i == label
                     ? 1.0 / probDist[i]
                     : -1.0 / (1.0 - probDist[i]);
         }
         return errors;
     }
-    
+
     private double[] squaredErrorDerivative(double[] preds, int label) {
         double[] errors = new double[preds.length];
         for (int i=0; i<errors.length; i++) {
-            errors[i] = i == label 
+            errors[i] = i == label
                     ? 1.0 - preds[i]
                     : -1.0 - preds[i];
         }
@@ -96,7 +96,7 @@ public class MNISTNNPredictor implements MNISTPredictor {
         }
         return probs;
     }
-    
+
     private double[] correctOutputsForLabel(int label) {
         double[] correctOutput = new double[NUM_OUTPUTS];
         Arrays.fill(correctOutput, -1.0);
