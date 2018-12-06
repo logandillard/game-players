@@ -4,7 +4,6 @@ public class NNLayerMaxPooling implements NNLayer {
     private final int numInputs;
     private final int layerSize;
     private final int numOutputs;
-    private double[] inputValues;
     private double[] outputValues;
     private int[] selectedOutputValues;
 
@@ -21,7 +20,6 @@ public class NNLayerMaxPooling implements NNLayer {
 
     @Override
     public double[] activate(double[] inputValues) {
-        this.inputValues = inputValues;
         this.outputValues = new double[numInputs/layerSize];
         this.selectedOutputValues = new int[numOutputs];
 

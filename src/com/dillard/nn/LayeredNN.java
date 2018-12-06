@@ -8,7 +8,7 @@ public class LayeredNN implements Serializable {
 
     public static LayeredNN buildFullyConnected(int[] unitsByLayer, ActivationFunction activationFunction,
             WeightInitializer initializer,
-            double learningRate, double l2Regularization, double l1Regularization) {
+            double learningRate, double l2Regularization) {
         if (unitsByLayer.length < 2) {
             throw new RuntimeException("Need at least 2 layers");
         }
@@ -17,7 +17,7 @@ public class LayeredNN implements Serializable {
         for (int layer = 0; layer < unitsByLayer.length - 1; layer++) {
             layers[layer] = new NNLayerFullyConnected(unitsByLayer[layer], unitsByLayer[layer + 1],
                     activationFunction, initializer,
-                    learningRate, l2Regularization, l1Regularization);
+                    learningRate, l2Regularization);
         }
 
         return new LayeredNN(layers);

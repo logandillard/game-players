@@ -6,7 +6,7 @@ import java.util.List;
 public class LabeledImage {
     public double[][] image;
     public int label;
-    
+
     public LabeledImage(double[][] image, int label) {
         this.image = image;
         this.label = label;
@@ -19,7 +19,7 @@ public class LabeledImage {
         }
         return lis;
     }
-    
+
     public static double[][] normalizePixelValues(int[][] image) {
         double[][] normalized = new double[image.length][image[0].length];
         for (int i=0; i<image.length; i++) {

@@ -7,7 +7,7 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
     private static final long serialVersionUID = 1L;
     private final int numInputs;
     private final int numOutputs;
-    private double[][] weights;
+    private final double[][] weights;
     private double[] inputValues;
     private double[] outputValues;
     private final ActivationFunction activationFunction;
@@ -16,13 +16,13 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
     public NNLayerFullyConnected(int numInputs, int numOutputs,
             ActivationFunction activationFunction,
             WeightInitializer initializer,
-            double learningRate, double l2Regularization, double l1Regularization) {
+            double learningRate, double l2Regularization) {
         this.numInputs = numInputs;
         this.numOutputs = numOutputs;
         this.activationFunction = activationFunction;
         weights = new double[numInputs + 1][numOutputs]; // + 1 for biases
         optimizer = new ADAMOptimizerMatrix(numInputs + 1, numOutputs, // + 1 for biases
-                learningRate, l2Regularization, l1Regularization);
+                learningRate, l2Regularization);
         outputValues = new double[numOutputs];
 
         // initialize weights randomly
@@ -76,7 +76,7 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
                 // ADAM update
                 optimizer.update(weights, input, output, gradient, true);
 
-                double currentWeight = weights[input][output];
+                double currentWeight = weights[input][output]; // weights[input][output];
                 // sum the derivative of the output with respect to the input for a previous layer to use
                 inputNodeGradient[input] += outputDerivative[output] * currentWeight; // TODO update after regularization?
             }

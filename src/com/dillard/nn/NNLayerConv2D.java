@@ -29,7 +29,7 @@ public class NNLayerConv2D implements NNLayer, Serializable {
     public NNLayerConv2D(int inputNumRows, int inputNumCols, int inputNumLayers,
             ActivationFunction activationFunction, WeightInitializer initializer,
             int numFilters, int width, int height, int depth, int stride, int padding, double paddingValue,
-            double learningRate, double l2Regularization, double l1Regularization) {
+            double learningRate, double l2Regularization) {
         this.inputNumRows = inputNumRows;
         this.inputNumCols = inputNumCols;
 //        this.inputNumLayers = inputNumLayers;
@@ -58,7 +58,7 @@ public class NNLayerConv2D implements NNLayer, Serializable {
         }
 
         optimizer = new ADAMOptimizerMatrix(numFilters, width * height * depth + 1,
-                learningRate, l2Regularization, l1Regularization);
+                learningRate, l2Regularization);
         weights = new double[numFilters][width * height * depth + 1]; // + 1 for biases
         outputValues = new double[numOutputs];
 

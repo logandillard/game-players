@@ -1,23 +1,27 @@
 package com.dillard.mnist;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Random;
 
 public class MNISTTrainer {
 
     public MNISTPredictor trainPredictor(List<LabeledImage> trainingData) {
-        MNISTNNPredictor predictor = new MNISTNNPredictor();
+        MNISTNNPredictor predictor = MNISTNNPredictor.build();
 
         final int maxIters = 50;
         final int toleranceIters = 4;
         final double tolerance = 0.01;
         double max = -1.0;
+        Random rand = new Random(23498);
         List<Double> maxList = new ArrayList<>();
         for (int i=0; i<maxIters; i++) {
+            Collections.shuffle(trainingData, rand);
             trainOneIteration(trainingData, predictor);
             double accuracy = accuracy(trainingData, predictor);
-            System.out.println(String.format("%.4f  - %s", accuracy, new Date()));
+            System.out.println(String.format("%02d  %.4f  - %s", i, accuracy, new Date()));
 
             if (accuracy > max) {
                 max = accuracy;
@@ -41,18 +45,6 @@ public class MNISTTrainer {
         for (LabeledImage li : trainingData) {
             double[] preds = nn.predictDist(li.image);
             nn.update(preds, li.label);
-
-//            // TODO check results before and after
-//            double[] errorsBefore = nn.logError(preds, li.label);
-//            double errorBefore = sum(errorsBefore);
-//            double[] predsAfter = nn.predictDist(li.image);
-//            double[] errorsAfter = nn.logError(predsAfter, li.label);
-//            double errorAfter = sum(errorsAfter);
-//
-//            @SuppressWarnings("unused")
-//            double relativeChange = errorAfter / errorBefore;
-//            @SuppressWarnings("unused")
-//            int f = 0;
         }
     }
 
