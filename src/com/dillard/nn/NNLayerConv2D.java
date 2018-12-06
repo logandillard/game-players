@@ -40,7 +40,8 @@ public class NNLayerConv2D implements NNLayer, Serializable {
 
         //  (W − F + 2P)/ S + 1
         numOutputRowsPerFilter = ((inputNumRows - height + 2*padding) / stride) + 1;
-        numOutputColsPerFilter = ((inputNumCols - width + 2*padding) / stride) + 1;
+        numOutputColsPerFilter = ((inputNumCols - width  + 2*padding) / stride) + 1;
+        // TODO throw an exception if these don't fit right
         numOutputsPerFilter = numOutputColsPerFilter * numOutputRowsPerFilter;
         numOutputs = numOutputsPerFilter * numFilters;
 
@@ -83,8 +84,8 @@ public class NNLayerConv2D implements NNLayer, Serializable {
             double[] filterWeights = weights[filter];
             double[] filterOutput = new double[numOutputsPerFilter];
             int filterOutputIdx = 0;
-            for (int startRow=0 - padding; startRow<inputNumCols + padding - height; startRow += stride) {
-                for (int startCol=0 - padding; startCol<inputNumCols + padding - width; startCol += stride) {
+            for (int startRow=0 - padding; startRow<inputNumRows + padding - height + 1; startRow += stride) {
+                for (int startCol=0 - padding; startCol<inputNumCols + padding - width + 1; startCol += stride) {
 
                     double filterValue = 0;
                     for (int filterRow = 0; filterRow<height; filterRow++) {
@@ -102,7 +103,9 @@ public class NNLayerConv2D implements NNLayer, Serializable {
                         }
                     }
 
-                    filterOutput[filterOutputIdx] = activationFunction.activate(filterValue + filterWeights[depth*width*height]); // include the bias
+                    // bias
+                    filterValue += filterWeights[depth*width*height];
+                    filterOutput[filterOutputIdx] = activationFunction.activate(filterValue);
                     filterOutputIdx++;
                 }
             }
@@ -126,35 +129,40 @@ public class NNLayerConv2D implements NNLayer, Serializable {
 
         for (int filter=0; filter<numFilters; filter++) {
 
-            for (int startRow=0 - padding, outputRow=0; startRow<inputNumCols + padding - height; startRow += stride, outputRow++) {
-                for (int startCol=0 - padding, outputCol=0; startCol<inputNumCols + padding - width; startCol += stride, outputCol++) {
+            for (int startRow=0 - padding, outputRow=0; startRow<inputNumCols + padding - height + 1; startRow += stride, outputRow++) {
+                for (int startCol=0 - padding, outputCol=0; startCol<inputNumCols + padding - width + 1; startCol += stride, outputCol++) {
 
                     double outputDerivative = outputDerivatives[filter*numOutputRowsPerFilter*numOutputColsPerFilter +
                                                                 outputRow*numOutputColsPerFilter + outputCol];
+                    if (outputDerivative != 0.0) {
+                        for (int filterRow = 0; filterRow<height; filterRow++) {
+                            int inputRow = filterRow + startRow;
+                            for (int filterCol = 0; filterCol<width; filterCol++) {
+                                int inputCol = filterCol + startCol;
 
-                    for (int filterRow = 0; filterRow<height; filterRow++) {
-                        int inputRow = filterRow + startRow;
-                        for (int filterCol = 0; filterCol<width; filterCol++) {
-                            int inputCol = filterCol + startCol;
+                                for (int layer=0; layer<depth; layer++) {
 
-                            for (int layer=0; layer<depth; layer++) {
+                                    double inputCellValue = paddingValue;
+                                    boolean isNotPadding = inputRow >= 0 && inputCol >= 0 && inputRow < inputNumRows && inputCol < inputNumCols;
+                                    if (isNotPadding) {
+                                        inputCellValue = inputValues[layer*inputNumRows*inputNumCols + inputRow*inputNumCols + inputCol];
+                                    }
+                                    double gradient = outputDerivative * inputCellValue;
+                                    optimizer.update(weights, filter, layer*width*height + filterRow*width + filterCol, gradient, true);
 
-                                double inputCellValue = paddingValue;
-                                if (inputRow >= 0 && inputCol >= 0 && inputRow < inputNumRows && inputCol < inputNumCols) {
-                                    inputCellValue = inputValues[layer*inputNumRows*inputNumCols + inputRow*inputNumCols + inputCol];
+                                    // pass on the gradient to the next layer only if this is not padding
+                                    if (isNotPadding) {
+                                        double currentWeight = weights[filter][layer*width*height + filterRow*width + filterCol];
+                                        inputNodeGradient[layer*inputNumRows*inputNumCols + inputRow*inputNumCols + inputCol] +=
+                                                outputDerivative * currentWeight;
+                                    }
                                 }
-                                double gradient = outputDerivative * inputCellValue;
-                                optimizer.update(weights, filter, layer*width*height + filterRow*width + filterCol, gradient, true);
-
-                                double currentWeight = weights[filter][layer*width*height + filterRow*width + filterCol];
-                                inputNodeGradient[layer*inputNumRows*inputNumCols + inputRow*inputNumCols + inputCol] +=
-                                        outputDerivative * currentWeight;
                             }
                         }
-                    }
 
-                    // biases
-                    optimizer.update(weights, filter, depth*width*height, outputDerivative, false);
+                        // biases
+                        optimizer.update(weights, filter, depth*width*height, outputDerivative, false);
+                    }
                 }
             }
 
@@ -172,5 +180,9 @@ public class NNLayerConv2D implements NNLayer, Serializable {
 
     public int getNumOutputs() {
         return numOutputs;
+    }
+
+    public int getNumFilters() {
+        return numFilters;
     }
 }

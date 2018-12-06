@@ -3,8 +3,14 @@ package com.dillard.mnist;
 import java.util.Arrays;
 import java.util.List;
 
+import com.dillard.nn.ActivationFunction;
 import com.dillard.nn.ActivationFunctionTanH;
 import com.dillard.nn.LayeredNN;
+import com.dillard.nn.NNLayer;
+import com.dillard.nn.NNLayerConv2D;
+import com.dillard.nn.NNLayerFullyConnected;
+import com.dillard.nn.NNLayerMaxPooling;
+import com.dillard.nn.WeightInitializer;
 import com.dillard.nn.WeightInitializerGaussianFixedVariance;
 
 public class MNISTNNPredictor implements MNISTPredictor {
@@ -12,13 +18,35 @@ public class MNISTNNPredictor implements MNISTPredictor {
     private LayeredNN nn;
 
     public MNISTNNPredictor() {
-        nn = LayeredNN.buildFullyConnected(new int[] {196, 15, NUM_OUTPUTS},
-                new ActivationFunctionTanH(),
-                new WeightInitializerGaussianFixedVariance(1.0/196.0),
-                0.001,   // learning rate
-                0.0001,  // l2 regularization
-                0.0      // l1 regularization
+        double learningRate = 0.001, l2 = 0.0001, l1 = 0.0;
+        ActivationFunction activation = new ActivationFunctionTanH();
+//        WeightInitializer initializer = new WeightInitializerGaussianFixedVariance(1.0/196.0);
+        WeightInitializer initializer = new WeightInitializerGaussianFixedVariance(1.0/49.0);
+        NNLayer[] layers = new NNLayer[3];
+        int numConvFilters = 20;
+        layers[0] = new NNLayerConv2D(14, 14, 1,
+                activation, initializer,
+                numConvFilters, // num filters
+                8, 8, 1, 2, // width, height, depth, stride
+                1, 0.0, // padding, paddingValue
+                learningRate, l2, l1
                 );
+        int numConvOutputs = ((NNLayerConv2D)layers[0]).getNumOutputs();
+        System.out.println("Num Conv outputs: " + numConvOutputs);
+        layers[1] = new NNLayerMaxPooling(numConvOutputs, numConvOutputs/numConvFilters);
+        layers[2] = new NNLayerFullyConnected(numConvFilters, 10,
+                activation, initializer,
+                learningRate, l2, l1
+                );
+        nn = new LayeredNN(layers);
+
+//        nn = LayeredNN.buildFullyConnected(new int[] {196, 15, NUM_OUTPUTS},
+//                new ActivationFunctionTanH(),
+//                new WeightInitializerGaussianFixedVariance(1.0/196.0),
+//                0.001,   // learning rate
+//                0.0001,  // l2 regularization
+//                0.0      // l1 regularization
+//                );
     }
 
     @Override
@@ -104,6 +132,7 @@ public class MNISTNNPredictor implements MNISTPredictor {
     }
 
     public void update(double[] preds, int label) {
+        // TODO squared error is probably not the best
         double[] errorGradient = squaredErrorDerivative(preds, label);
         nn.backprop(errorGradient);
     }
