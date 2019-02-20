@@ -184,6 +184,8 @@ public class CheckersRLTrainer {
             // take move
             game.move(result.chosenMove);
 
+            System.out.println(game);
+
             // update gametree in MCTS
             mcts.advanceToMove(result.chosenMove);
         }

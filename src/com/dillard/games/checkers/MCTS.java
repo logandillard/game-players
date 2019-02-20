@@ -1,6 +1,7 @@
 package com.dillard.games.checkers;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,18 +72,12 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
     private MCTSMove findBestMove(Node<M, G> root) {
         MCTSMove maxScoreMove = null;
         double maxScore = -Double.MAX_VALUE;
-        for (var entry : root.children.entrySet()) {
+        var children = new ArrayList<>(root.children.entrySet());
+        Collections.shuffle(children);
+        for (var entry : children) {
             Node<M, G> childNode = entry.getValue();
             double opponentMultiplier = childNode.game.isPlayer1Turn() == root.game.isPlayer1Turn() ? 1.0 : -1.0;
             double observedValueScore = opponentMultiplier * (childNode.observedValueSum / (1.0 + childNode.visitCount));
-            if (observedValueScore != 0.0) {
-                @SuppressWarnings("unused")
-                String s = "";
-            }
-            if (opponentMultiplier == 1.0) {
-                @SuppressWarnings("unused")
-                String s = "";
-            }
             double priorScore = priorWeight * (childNode.priorProb / (1.0 + childNode.visitCount));
             double score = observedValueScore + priorScore;
             if (score > maxScore) {
@@ -185,7 +180,7 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
         }
 
         // Sample
-        double threshold = random.nextDouble() * sum;
+        double threshold = random.nextDouble();
         double accum = 0;
         M move = scoredMoves.get(scoredMoves.size() - 1).move;
         for (int i=0; i<scoredMoves.size(); i++) {
@@ -221,6 +216,11 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
         public SearchResult(List<ScoredMove<M>> scoredMoves, M chosenMove) {
             this.scoredMoves = scoredMoves;
             this.chosenMove = chosenMove;
+        }
+
+        @Override
+        public String toString() {
+            return chosenMove.toString() + " " + scoredMoves.toString();
         }
     }
 }

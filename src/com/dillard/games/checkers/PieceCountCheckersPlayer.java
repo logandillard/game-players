@@ -18,10 +18,10 @@ public class PieceCountCheckersPlayer implements CheckersPlayer, MCTSPlayer<Chec
     }
 
     public StateEvaluation<CheckersMove> evaluateState(CheckersGame game) {
-        double evaluation = game.evaluate(game.isPlayer1Turn());
+        double evaluation = game.evaluate(game.isPlayer1Turn()) / 10.0;
         List<CheckersMove> moves = game.getMoves();
         List<Double> scores = new ArrayList<>();
-        for (CheckersMove move : moves) {
+        for (@SuppressWarnings("unused") CheckersMove move : moves) {
             scores.add(1.0 / moves.size());
         }
         return new StateEvaluation<>(evaluation, moves, scores);

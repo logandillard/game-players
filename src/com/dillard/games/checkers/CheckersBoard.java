@@ -49,8 +49,8 @@ public class CheckersBoard implements Cloneable {
 			} else {
 				numBlackKings++;
 			}
+			boardPieces[row][col] = Piece.forValue(p.getColor(), true);
 		}
-		boardPieces[row][col] = Piece.forValue(p.getColor(), true);
 	}
 
 	public final void removePiece(CheckersLocation location) throws BoardException {
