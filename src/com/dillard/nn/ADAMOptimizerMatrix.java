@@ -23,6 +23,11 @@ public final class ADAMOptimizerMatrix {
         adamV = new double[weightRows][weightCols];
     }
 
+    /** Not a clone, just a new one with the same parameters. Does not copy state. */
+    public ADAMOptimizerMatrix copyNew() {
+        return new ADAMOptimizerMatrix(adamM.length, adamM[0].length, learningRate, lrTimesL2 / learningRate);
+    }
+
     public final void update(final double[][] weights, int row, int col, double gradient, boolean applyRegularization) {
         // ADAM update
         adamM[row][col] = beta1 * adamM[row][col] + (1.0 - beta1) * gradient;

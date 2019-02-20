@@ -37,6 +37,27 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
         }
     }
 
+    public NNLayerFullyConnected(int numInputs, int numOutputs, double[][] weights, double[] inputValues,
+            double[] outputValues, ActivationFunction activationFunction, ADAMOptimizerMatrix optimizer) {
+        this.numInputs = numInputs;
+        this.numOutputs = numOutputs;
+        this.weights = weights;
+        this.inputValues = inputValues;
+        this.outputValues = outputValues;
+        this.activationFunction = activationFunction;
+        this.optimizer = optimizer;
+    }
+
+    @Override
+    public NNLayerFullyConnected clone() {
+        return new NNLayerFullyConnected(numInputs, numOutputs,
+                Utils.copyArray2D(weights),
+                inputValues == null ? null : inputValues.clone(),
+                outputValues == null ? null : outputValues.clone(),
+                activationFunction,
+                optimizer.copyNew());
+    }
+
     @Override
     public double[] activate(double[] inputValues) {
         this.inputValues = inputValues;

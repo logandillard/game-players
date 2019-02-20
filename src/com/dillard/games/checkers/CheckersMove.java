@@ -1,72 +1,64 @@
 package com.dillard.games.checkers;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import com.dillard.games.Move;
+import com.dillard.games.checkers.MCTS.MCTSMove;
 
-public class CheckersMove implements Move {
+public class CheckersMove implements Move, MCTSMove {
 
-	private CheckersLocation from;
-	private CheckersLocation to;
-	// This needs to be a list because we can have multiple jumps!
-	private List<CheckersLocation> jumpedPieces = null;
+	public final CheckersLocation from;
+	public final CheckersLocation to;
+	public final CheckersLocation jumpedLocation;
 
 	public CheckersMove(CheckersLocation from, CheckersLocation to) {
-		super();
 		this.from = from;
 		this.to = to;
+		this.jumpedLocation = null;
 	}
-
-	public void addJumpedPiece(CheckersLocation jumpedLocation) {
-		if (jumpedPieces == null) {
-			jumpedPieces = new ArrayList<CheckersLocation>();
-		}
-		jumpedPieces.add(jumpedLocation);
-	}
-	public void setJumpedPieces(List<CheckersLocation> jumped) {
-		jumpedPieces = jumped;
-	}
-
-	public void setFrom(CheckersLocation from) {
-		this.from = from;
-	}
-	public CheckersLocation getFrom() {
-		return from;
-	}
-	public CheckersLocation getTo() {
-		return to;
-	}
-	public boolean hasJumpedPieces() {
-		return jumpedPieces != null && jumpedPieces.size() > 0;
-	}
-	public List<CheckersLocation> getJumpedPieces() {
-		return jumpedPieces;
-	}
+    public CheckersMove(CheckersLocation from, CheckersLocation to, CheckersLocation jumpedLocation) {
+        this.from = from;
+        this.to = to;
+        this.jumpedLocation = jumpedLocation;
+    }
 
 	@Override
     public String toString() {
 		return from.toString() + " -> " + to.toString() +
-			(hasJumpedPieces() ? " jumping " + jumpedPieces.size() : "");
+			(jumpedLocation != null ? " jumping " + jumpedLocation.toString() : "");
 	}
 
 	@Override
-    public boolean equals (Object o) {
-		if (!(o instanceof CheckersMove)) return false;
-		CheckersMove other = (CheckersMove)o;
-		boolean toAndFrom = this.from.equals(other.from) &&
-			   					this.to.equals(other.to) ;
-		if (!toAndFrom) return false;
-
-		if (jumpedPieces == null && other.jumpedPieces == null) return true;
-		else if (jumpedPieces == null || other.jumpedPieces == null) return false;
-
-		if (jumpedPieces.size() != other.jumpedPieces.size()) return false;
-
-		for (int i=0; i< jumpedPieces.size(); i++) {
-			if (jumpedPieces.get(i) != other.jumpedPieces.get(i)) return false;
-		}
-		return true;
-
-	}
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((from == null) ? 0 : from.hashCode());
+        result = prime * result + ((jumpedLocation == null) ? 0 : jumpedLocation.hashCode());
+        result = prime * result + ((to == null) ? 0 : to.hashCode());
+        return result;
+    }
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        CheckersMove other = (CheckersMove) obj;
+        if (from == null) {
+            if (other.from != null)
+                return false;
+        } else if (!from.equals(other.from))
+            return false;
+        if (jumpedLocation == null) {
+            if (other.jumpedLocation != null)
+                return false;
+        } else if (!jumpedLocation.equals(other.jumpedLocation))
+            return false;
+        if (to == null) {
+            if (other.to != null)
+                return false;
+        } else if (!to.equals(other.to))
+            return false;
+        return true;
+    }
 }

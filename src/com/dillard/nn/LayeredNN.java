@@ -2,7 +2,7 @@ package com.dillard.nn;
 
 import java.io.Serializable;
 
-public class LayeredNN implements Serializable {
+public class LayeredNN implements Serializable, Cloneable {
     private static final long serialVersionUID = 1L;
     private NNLayer[] layers;
 
@@ -25,6 +25,15 @@ public class LayeredNN implements Serializable {
 
     public LayeredNN(NNLayer[] layers) {
         this.layers = layers;
+    }
+
+    @Override
+    public LayeredNN clone() {
+        NNLayer[] l = new NNLayer[this.layers.length];
+        for (int i=0; i<l.length; i++) {
+            l[i] = layers[i].clone();
+        }
+        return new LayeredNN(l);
     }
 
     public double[] activate(double[] inputValues) {

@@ -1,9 +1,6 @@
 package com.dillard.games.checkers;
 
-import java.util.List;
-
 import com.dillard.games.InvalidMoveException;
-import com.dillard.games.Move;
 
 public class CheckersTest {
 	public static void main(String[] args) throws Exception {
@@ -15,7 +12,7 @@ public class CheckersTest {
 	}
 
 	private static void testWrongPlayer() throws Exception {
-		Checkers checkers = new Checkers();
+		CheckersGame checkers = new CheckersGame();
 
 		// Check initial player
 		assertTrue(checkers.isPlayer1Turn(), "Right player starts");
@@ -31,12 +28,12 @@ public class CheckersTest {
 	}
 
 	private static void testGetMoves() throws Exception {
-		Checkers checkers = new Checkers();
+		CheckersGame checkers = new CheckersGame();
 
 		// Check initial moves
 		//		System.out.println(checkers.toString());
 
-		List<Move> moves = checkers.getMoves();
+		var moves = checkers.getMoves();
 		assertEquals(7, moves.size(), "Right number of initial moves");
 
 
@@ -69,9 +66,15 @@ public class CheckersTest {
 
 		moves = checkers.getMoves();
 		assertEquals(1, moves.size(), "Right number of moves with forced double jump");
-		assertEquals(2, ((CheckersMove)moves.get(0)).getJumpedPieces().size(),
-		"Right number of jumped pieces with forced double jump");
+		assertTrue(moves.get(0).jumpedLocation != null, "It is a jump move");
+		boolean isPlayer1Turn = checkers.isPlayer1Turn();
+//		assertEquals( , moves.get(0).jumpedLocation, "Has the jump location");
 		checkers.move(moves.get(0));
+
+		moves = checkers.getMoves();
+		assertEquals(1, moves.size(), "Forced to complete the double jump");
+		assertTrue(moves.get(0).jumpedLocation != null, "It is a jump move");
+		assertTrue(isPlayer1Turn == checkers.isPlayer1Turn(), "Still the same player's turn");
 //		System.out.println(checkers);
 	}
 

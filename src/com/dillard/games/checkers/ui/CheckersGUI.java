@@ -12,21 +12,21 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
 import com.dillard.games.GamePlayer;
-import com.dillard.games.checkers.Checkers;
+import com.dillard.games.checkers.CheckersGame;
 
 public class CheckersGUI extends JFrame {
     private static final long serialVersionUID = 1L;
-    private Checkers checkers;
+    private CheckersGame checkers;
 	private CheckerBoardUI board;
 //	private JFrame frame;
 
-	public CheckersGUI (Checkers checkers, GamePlayer<Checkers> player1, GamePlayer<Checkers> player2) {
+	public CheckersGUI (CheckersGame checkers, GamePlayer<CheckersGame> player1, GamePlayer<CheckersGame> player2) {
 		this.checkers = checkers;
 
 		init(player1, player2);
 	}
 
-	private void init(GamePlayer<Checkers> player1, GamePlayer<Checkers> player2) {
+	private void init(GamePlayer<CheckersGame> player1, GamePlayer<CheckersGame> player2) {
 		this.setTitle("CheckerBoard");
 		this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 

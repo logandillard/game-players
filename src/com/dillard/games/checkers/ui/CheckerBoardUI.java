@@ -19,7 +19,7 @@ import javax.swing.JTextArea;
 import com.dillard.games.GamePlayer;
 import com.dillard.games.InvalidMoveException;
 import com.dillard.games.Move;
-import com.dillard.games.checkers.Checkers;
+import com.dillard.games.checkers.CheckersGame;
 import com.dillard.games.checkers.CheckersLocation;
 import com.dillard.games.checkers.CheckersMove;
 import com.dillard.games.checkers.Piece;
@@ -30,16 +30,16 @@ public class CheckerBoardUI extends JPanel implements ActionListener, MouseListe
     private final int rows = 8, cols = 8;
 	private final int boardWidthPx = 400, boardHeightPx = 400;
 	private CheckersBoardSquare[][] panels;
-	private Checkers model;
+	private CheckersGame model;
 //	private CheckersLocation selectedLocation = null;
 	private CheckersBoardSquare selectedSquare = null;
 	private List<Move> currentMoves = null;
 	private boolean isPlayer1Turn = true;
-	GamePlayer<Checkers> player1;
-	GamePlayer<Checkers> player2;
+	GamePlayer<CheckersGame> player1;
+	GamePlayer<CheckersGame> player2;
 	JTextArea log;
 
-	public CheckerBoardUI(Checkers model, GamePlayer<Checkers> player1, GamePlayer<Checkers> player2, JTextArea log) {
+	public CheckerBoardUI(CheckersGame model, GamePlayer<CheckersGame> player1, GamePlayer<CheckersGame> player2, JTextArea log) {
 		super();
 		this.model = model;
 		model.addObserver(this);
@@ -143,8 +143,8 @@ public class CheckerBoardUI extends JPanel implements ActionListener, MouseListe
 	public void update(Observable observable, Object arg1) {
 		// model tells me that something has changed.
 		// get the necessary information and repaint the board as necessary
-		if (observable instanceof Checkers) {
-			Checkers checkers = (Checkers) observable;
+		if (observable instanceof CheckersGame) {
+			CheckersGame checkers = (CheckersGame) observable;
 			Piece[][] boardPieces = checkers.getBoardPieces();
 			setPieces(boardPieces);
 			currentMoves = null;
@@ -169,7 +169,7 @@ public class CheckerBoardUI extends JPanel implements ActionListener, MouseListe
 		}
 	}
 
-	private void getAndDoMove(GamePlayer<Checkers> player) {
+	private void getAndDoMove(GamePlayer<CheckersGame> player) {
 		try {
 			Move m = player.move(model);
 			model.move(m);

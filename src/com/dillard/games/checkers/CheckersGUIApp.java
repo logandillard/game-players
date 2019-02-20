@@ -5,11 +5,11 @@ import com.dillard.games.checkers.ui.CheckersGUI;
 
 public class CheckersGUIApp {
 	public static void main(String[] args) throws Exception {
-		Checkers model = new Checkers();
+		CheckersGame model = new CheckersGame();
 
 		CheckersGUI ui = new CheckersGUI(model,
 				null,
-				new ABPruningPlayer<Checkers>(10));
+				new ABPruningPlayer<CheckersGame>(10));
 		ui.run();
 	}
 }

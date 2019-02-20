@@ -1,14 +1,13 @@
 package com.dillard.games.checkers;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import com.dillard.games.checkers.MCTS.MCTSPlayer;
 
-public class NNCheckersPlayer implements CheckersPlayer, MCTSPlayer<CheckersMove, CheckersGame> {
-    private CheckersValueNN nn;
+public class PieceCountCheckersPlayer implements CheckersPlayer, MCTSPlayer<CheckersMove, CheckersGame> {
 
-	public NNCheckersPlayer(CheckersValueNN nn) {
-	    this.nn = nn;
+	public PieceCountCheckersPlayer() {
 	}
 
     @Override
@@ -19,8 +18,13 @@ public class NNCheckersPlayer implements CheckersPlayer, MCTSPlayer<CheckersMove
     }
 
     public StateEvaluation<CheckersMove> evaluateState(CheckersGame game) {
+        double evaluation = game.evaluate(game.isPlayer1Turn());
         List<CheckersMove> moves = game.getMoves();
-        return nn.evaluateState(game, moves);
+        List<Double> scores = new ArrayList<>();
+        for (CheckersMove move : moves) {
+            scores.add(1.0 / moves.size());
+        }
+        return new StateEvaluation<>(evaluation, moves, scores);
     }
 
 //    private MoveWithScore maxScoreMove(List<Double> moveScores, List<CheckersMove> moves) {

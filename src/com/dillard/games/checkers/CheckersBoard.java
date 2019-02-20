@@ -17,7 +17,7 @@ public class CheckersBoard implements Cloneable {
 	CheckersBoard() {
 		boardPieces = initializeBoard();
 	}
-	private CheckersBoard(Piece[][] boardPieces, int numPieces, int numWhitePieces, int numBlackPieces,
+	CheckersBoard(Piece[][] boardPieces, int numPieces, int numWhitePieces, int numBlackPieces,
 			int numWhiteKings, int numBlackKings) {
 		this.boardPieces = boardPieces;
 		this.numPieces = numPieces;
@@ -27,7 +27,7 @@ public class CheckersBoard implements Cloneable {
 		this.numBlackKings = numBlackKings;
 	}
 
-	public void movePiece(CheckersLocation from, CheckersLocation to) throws BoardException {
+	public final void movePiece(CheckersLocation from, CheckersLocation to) throws BoardException {
 
 		Piece p = boardPieces[from.getRow()][from.getCol()];
 		Piece existingDest = boardPieces[to.getRow()][to.getCol()];
@@ -38,22 +38,22 @@ public class CheckersBoard implements Cloneable {
 		boardPieces[from.getRow()][from.getCol()] = null;
 	}
 
-	public void kingPiece(CheckersLocation location) throws BoardException {
+	public final void kingPiece(CheckersLocation location) throws BoardException {
 		int row = location.getRow(), col = location.getCol();
 
 		Piece p = boardPieces[row][col];
 		if (p == null) throw new BoardException();
-		if (p.isKing()) {
+		if (!p.isKing()) {
 			if (p.getColor() == PieceColor.WHITE) {
-				numWhiteKings--;
+				numWhiteKings++;
 			} else {
-				numBlackKings--;
+				numBlackKings++;
 			}
 		}
 		boardPieces[row][col] = Piece.forValue(p.getColor(), true);
 	}
 
-	public void removePiece(CheckersLocation location) throws BoardException {
+	public final void removePiece(CheckersLocation location) throws BoardException {
 		int row = location.getRow();
 		int col = location.getCol();
 
@@ -66,10 +66,11 @@ public class CheckersBoard implements Cloneable {
 		decrementPieceCount(existingPiece);
 	}
 
-	public boolean isLocationEmpty(CheckersLocation location) {
+	public final boolean isLocationEmpty(CheckersLocation location) {
 		return getPiece(location) == null;
 	}
-	public Piece getPiece(CheckersLocation location) {
+
+	public final Piece getPiece(CheckersLocation location) {
 		return boardPieces[location.getRow()][location.getCol()];
 	}
 
@@ -117,7 +118,7 @@ public class CheckersBoard implements Cloneable {
 	}
 
 	@Override
-    public CheckersBoard clone() {
+    public final CheckersBoard clone() {
 		Piece[][] boardPieces = new Piece[NUM_ROWS][NUM_COLS];
 		for (int r = 0; r < NUM_ROWS; r++) {
 			for (int c = 0; c < NUM_COLS; c++) {
@@ -128,7 +129,7 @@ public class CheckersBoard implements Cloneable {
 		return new CheckersBoard(boardPieces, numPieces, numWhitePieces, numBlackPieces, numWhiteKings, numBlackKings);
 	}
 
-	public boolean isLegalPosition(int row, int col) {
+	public final boolean isLegalPosition(int row, int col) {
 		// if row is even, col must be odd
 		// if row is odd, col must be even
 
@@ -148,10 +149,12 @@ public class CheckersBoard implements Cloneable {
 	private static String WHITE_PIECE_KING = "W";
 	private static String BLACK_PIECE = "b";
 	private static String BLACK_PIECE_KING = "B";
+
 	@Override
     public String toString() {
 		return toString(null);
 	}
+
 	public String toString(Map<CheckersLocation, String> locationReplacements) {
 		StringBuilder sb = new StringBuilder();
 

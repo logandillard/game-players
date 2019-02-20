@@ -4,8 +4,8 @@ public class CheckersLocation {
 	private static CheckersLocation[][]
         locations = new CheckersLocation[CheckersBoard.NUM_ROWS][CheckersBoard.NUM_COLS];
 
-	private int row;
-	private int col;
+	public final int row;
+	public final int col;
 
 	private CheckersLocation(int r, int c) {
 		this.row = r;
@@ -38,9 +38,27 @@ public class CheckersLocation {
 	}
 
 	@Override
-    public boolean equals(Object o) {
-		if (!(o instanceof CheckersLocation)) return false;
-		CheckersLocation other = (CheckersLocation)o;
-		return other.row == this.row && other.col == this.col;
-	}
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + col;
+        result = prime * result + row;
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        CheckersLocation other = (CheckersLocation) obj;
+        if (col != other.col)
+            return false;
+        if (row != other.row)
+            return false;
+        return true;
+    }
 }

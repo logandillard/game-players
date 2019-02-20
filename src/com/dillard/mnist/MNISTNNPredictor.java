@@ -21,24 +21,24 @@ public class MNISTNNPredictor implements MNISTPredictor {
 //        WeightInitializer initializer = new WeightInitializerGaussianFixedVariance(1.0/784.0);
 
 //        NNLayer[] layers = new NNLayer[3];
-//        int numConvFilters = 20;
+//        int numConvFilters = 100;
 //        layers[0] = new NNLayerConv2D(14, 14, 1,
 //                activation, initializer,
 //                numConvFilters, // num filters
 //                10, 10, 1, 2, // width, height, depth, stride
 //                1, 0.0, // padding, paddingValue
-//                learningRate, l2, l1
+//                learningRate, l2
 //                );
 //        int numConvOutputs = ((NNLayerConv2D)layers[0]).getNumOutputs();
 //        System.out.println("Num Conv outputs: " + numConvOutputs);
 //        layers[1] = new NNLayerMaxPooling(numConvOutputs, numConvOutputs/numConvFilters);
 //        layers[2] = new NNLayerFullyConnected(numConvFilters, 10,
 //                activation, initializer,
-//                learningRate, l2, l1
+//                learningRate, l2
 //                );
-//        nn = new LayeredNN(layers);
+//        LayeredNN nn = new LayeredNN(layers);
 
-        LayeredNN nn = LayeredNN.buildFullyConnected(new int[] {196, 50, NUM_OUTPUTS},
+        LayeredNN nn = LayeredNN.buildFullyConnected(new int[] {196, 200, NUM_OUTPUTS},
                 activation,
                 initializer,
                 learningRate, l2

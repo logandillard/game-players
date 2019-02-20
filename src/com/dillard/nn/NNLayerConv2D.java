@@ -74,6 +74,45 @@ public class NNLayerConv2D implements NNLayer, Serializable {
         }
     }
 
+    NNLayerConv2D(int numInputs, int inputNumRows, int inputNumCols, int numOutputs, int numFilters,
+            int numOutputsPerFilter, int numOutputRowsPerFilter, int numOutputColsPerFilter, int width, int height,
+            int depth, int stride, int padding, double paddingValue, double[][] weights, double[] inputValues,
+            double[] outputValues, ActivationFunction activationFunction, ADAMOptimizerMatrix optimizer) {
+        this.numInputs = numInputs;
+        this.inputNumRows = inputNumRows;
+        this.inputNumCols = inputNumCols;
+        this.numOutputs = numOutputs;
+        this.numFilters = numFilters;
+        this.numOutputsPerFilter = numOutputsPerFilter;
+        this.numOutputRowsPerFilter = numOutputRowsPerFilter;
+        this.numOutputColsPerFilter = numOutputColsPerFilter;
+        this.width = width;
+        this.height = height;
+        this.depth = depth;
+        this.stride = stride;
+        this.padding = padding;
+        this.paddingValue = paddingValue;
+        this.weights = weights;
+        this.inputValues = inputValues;
+        this.outputValues = outputValues;
+        this.activationFunction = activationFunction;
+        this.optimizer = optimizer;
+    }
+
+    @Override
+    public NNLayerConv2D clone() {
+        return new NNLayerConv2D(
+                numInputs, inputNumRows, inputNumCols, numOutputs, numFilters,
+                numOutputsPerFilter, numOutputRowsPerFilter, numOutputColsPerFilter, width, height,
+                depth, stride, padding, paddingValue,
+                Utils.copyArray2D(weights),
+                inputValues.clone(),
+                outputValues.clone(),
+                activationFunction,
+                optimizer.copyNew()
+                );
+    }
+
     public double[] activate(final double[] inputValues) {
         this.inputValues = inputValues;
         Arrays.fill(outputValues, 0.0);
