@@ -1,16 +1,17 @@
 package com.dillard.games.checkers;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.dillard.games.checkers.MCTS.ScoredMove;
 import com.dillard.nn.ActivationFunction;
 import com.dillard.nn.ActivationFunctionTanH;
 import com.dillard.nn.LayeredNN;
 import com.dillard.nn.WeightInitializer;
 import com.dillard.nn.WeightInitializerGaussianFixedVariance;
 
-public class CheckersValueNN {
+public class CheckersValueNN implements Serializable {
+    private static final long serialVersionUID = 1L;
     private static final int NUM_INPUTS = 128;
     private static final int NUM_OUTPUTS = 264;
     private LayeredNN nn;
@@ -26,7 +27,8 @@ public class CheckersValueNN {
         LayeredNN nn = LayeredNN.buildFullyConnected(new int[] {NUM_INPUTS, 100, NUM_OUTPUTS},
             activation,
             initializer,
-            learningRate, l2
+            learningRate,
+            l2
             );
         return new CheckersValueNN(nn);
     }
@@ -59,19 +61,8 @@ public class CheckersValueNN {
         return new StateEvaluation<>(stateValue, moves, scores);
     }
 
-    private static final int kingOffset = 64;
+    private static final int KING_OFFSET = 64;
     private double[] createNNInputs(Piece[][] board, boolean mirrorForOpponent) {
-
-//        // Test mirrorForOpponent
-//        Piece[][] mirrorBoard = new Piece[8][8];
-//        for (int row=0; row<board.length; row++) {
-//            for (int col=row % 2; col<board[row].length; col += 2) {
-//                mirrorBoard[row][col] = board[7 - row][7 - col];
-//            }
-//        }
-//        System.out.println(new CheckersBoard(board, 0,0,0,0,0));
-//        System.out.println(new CheckersBoard(mirrorBoard, 0,0,0,0,0));
-
 
         double[] inputs = new double[NUM_INPUTS];
         int idx = 0;
@@ -98,7 +89,7 @@ public class CheckersValueNN {
                     }
 
                     if (p.isKing()) {
-                        inputs[idx + offset + kingOffset] = 1.0;
+                        inputs[idx + offset + KING_OFFSET] = 1.0;
                     } else {
                         inputs[idx + offset] = 1.0;
                     }
@@ -133,7 +124,7 @@ public class CheckersValueNN {
 
     public double error(TrainingExample te) {
         double[] outputs = nn.activate(createNNInputs(te.state.getBoardPieces(), !te.isPlayer1));
-        double[] correctOutputs = createCorrectOutputs(te);
+        double[] correctOutputs = createCorrectOutputs(te, outputs);
         double error = 0.0;
         for (int i=0; i<outputs.length; i++) {
             double e = correctOutputs[i] - outputs[i];
@@ -143,17 +134,14 @@ public class CheckersValueNN {
     }
 
     public void trainMiniBatch(List<TrainingExample> miniBatch) {
-        // TODO
-//        System.out.println("Need to accumulate gradients for actual mini batch");
         for (var te : miniBatch) {
             double[] outputs = nn.activate(createNNInputs(te.state.getBoardPieces(), !te.isPlayer1));
-            double[] correctOutputs = createCorrectOutputs(te);
+            double[] correctOutputs = createCorrectOutputs(te, outputs);
             double[] errorGradients = errorGradients(outputs, correctOutputs);
-            // TODO need to accumulate gradients for actual mini batch
-            // nn.accumulateGradients(errorGradients);
-            nn.backprop(errorGradients);
+
+            nn.accumulateGradients(errorGradients);
         }
-//        nn.backprobAccumulatedGradients();
+        nn.applyAccumulatedGradients();
     }
 
     private double[] errorGradients(double[] outputs, double[] correctOutputs) {
@@ -164,11 +152,15 @@ public class CheckersValueNN {
         return errorGradients;
     }
 
-    private double[] createCorrectOutputs(TrainingExample te) {
-        double[] correctOutputs = new double[NUM_OUTPUTS];
+    private double[] createCorrectOutputs(TrainingExample te, double[] actualOutputs) {
+        // Retain the actual output for moves that were not legal possibilities.
+        // We don't need the network to learn to output zero for illegal moves,
+        // so we will give it zero error for illegal moves.
+        double[] correctOutputs = actualOutputs.clone();
+
         correctOutputs[0] = te.finalGameValue; // location 0 is the state value
-        for (ScoredMove<CheckersMove> scoredMove : te.scoredMoves) {
-            int idx = moveIndex(scoredMove.move);
+        for (Scored<CheckersMove> scoredMove : te.scoredMoves) {
+            int idx = moveIndex(scoredMove.value);
             correctOutputs[idx + 1] = scoredMove.score;
         }
         return correctOutputs;

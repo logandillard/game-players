@@ -64,4 +64,13 @@ public class NNLayerMaxPooling implements NNLayer {
         return inputNodeGradient;
     }
 
+    @Override
+    public double[] accumulateGradients(double[] errorGradient) {
+        return backprop(errorGradient);
+    }
+
+    @Override
+    public void applyAccumulatedGradients() {
+    }
+
 }

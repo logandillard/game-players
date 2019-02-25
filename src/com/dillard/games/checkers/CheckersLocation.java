@@ -1,8 +1,20 @@
 package com.dillard.games.checkers;
 
-public class CheckersLocation {
-	private static CheckersLocation[][]
+import java.io.Serializable;
+
+public class CheckersLocation implements Serializable {
+    private static final long serialVersionUID = 1L;
+
+    private static CheckersLocation[][]
         locations = new CheckersLocation[CheckersBoard.NUM_ROWS][CheckersBoard.NUM_COLS];
+
+    static {
+        for (int r=0; r<8; r++) {
+            for (int c=0; c<8; c++) {
+                locations[r][c] = new CheckersLocation(r, c);
+            }
+        }
+    }
 
 	public final int row;
 	public final int col;
@@ -13,15 +25,7 @@ public class CheckersLocation {
 	}
 
 	public static CheckersLocation forLocation(int row, int col) {
-		if (!CheckersBoard.isWithinBounds(row) || !CheckersBoard.isWithinBounds(col)) {
-			return null;
-		}
-		CheckersLocation l = locations[row][col];
-		if (l == null) {
-			l = new CheckersLocation(row, col);
-			locations[row][col] = l;
-		}
-		return l;
+	    return locations[row][col];
 	}
 
 	public int getRow() {
@@ -39,11 +43,7 @@ public class CheckersLocation {
 
 	@Override
     public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + col;
-        result = prime * result + row;
-        return result;
+	    return 31 * row + col;
     }
 
     @Override

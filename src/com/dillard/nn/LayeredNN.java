@@ -50,6 +50,19 @@ public class LayeredNN implements Serializable, Cloneable {
         }
     }
 
+    public void accumulateGradients(double[] errorGradient) {
+        double[] nextLayerErrorGradient = errorGradient;
+        for (int layer = layers.length - 1; layer >= 0; layer--) {
+            nextLayerErrorGradient = layers[layer].accumulateGradients(nextLayerErrorGradient);
+        }
+    }
+
+    public void applyAccumulatedGradients() {
+        for (int layer = layers.length - 1; layer >= 0; layer--) {
+            layers[layer].applyAccumulatedGradients();
+        }
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

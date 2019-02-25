@@ -1,11 +1,14 @@
 package com.dillard.games.checkers;
 
+import java.io.Serializable;
+
 import com.dillard.games.Move;
 import com.dillard.games.checkers.MCTS.MCTSMove;
 
-public class CheckersMove implements Move, MCTSMove {
+public class CheckersMove implements Move, MCTSMove, Serializable {
+    private static final long serialVersionUID = 1L;
 
-	public final CheckersLocation from;
+    public final CheckersLocation from;
 	public final CheckersLocation to;
 	public final CheckersLocation jumpedLocation;
 
@@ -28,11 +31,9 @@ public class CheckersMove implements Move, MCTSMove {
 
 	@Override
     public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + ((from == null) ? 0 : from.hashCode());
-        result = prime * result + ((jumpedLocation == null) ? 0 : jumpedLocation.hashCode());
-        result = prime * result + ((to == null) ? 0 : to.hashCode());
+        int result = 31 + ((from == null) ? 0 : from.hashCode());
+        result = 31 * result + ((jumpedLocation == null) ? 0 : jumpedLocation.hashCode());
+        result = 31 * result + ((to == null) ? 0 : to.hashCode());
         return result;
     }
     @Override

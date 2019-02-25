@@ -8,6 +8,7 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
     private final int numInputs;
     private final int numOutputs;
     private final double[][] weights;
+    private final double[][] accumulatedGradients;
     private double[] inputValues;
     private double[] outputValues;
     private final ActivationFunction activationFunction;
@@ -21,6 +22,7 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
         this.numOutputs = numOutputs;
         this.activationFunction = activationFunction;
         weights = new double[numInputs + 1][numOutputs]; // + 1 for biases
+        accumulatedGradients = new double[numInputs + 1][numOutputs]; // + 1 for biases
         optimizer = new ADAMOptimizerMatrix(numInputs + 1, numOutputs, // + 1 for biases
                 learningRate, l2Regularization);
         outputValues = new double[numOutputs];
@@ -46,6 +48,7 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
         this.outputValues = outputValues;
         this.activationFunction = activationFunction;
         this.optimizer = optimizer;
+        accumulatedGradients = new double[numInputs + 1][numOutputs]; // + 1 for biases
     }
 
     @Override
@@ -106,12 +109,67 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
         // biases
         for (int output=0; output<numOutputs; output++) {
             // ADAM update
-            optimizer.update(weights, numInputs, output, outputDerivative[output], true); // no regularization on biases
+            optimizer.update(weights, numInputs, output, outputDerivative[output], false); // no regularization on biases
         }
 
         optimizer.incrementIteration();
 
         return inputNodeGradient;
+    }
+
+    @Override
+    public double[] accumulateGradients(double[] errorGradient) {
+        // This is copied from backprop() above, but we don't apply the update from the optimizer, we just store the update
+        double[] inputNodeGradient = new double[numInputs];
+
+        double[] outputDerivative = new double[numOutputs];
+        for (int output=0; output<numOutputs; output++) {
+            outputDerivative[output] = errorGradient[output] * activationFunction.derivative(outputValues[output]);
+        }
+
+        for (int input=0; input<numInputs; input++) {
+            for (int output=0; output<numOutputs; output++) {
+                double gradient = inputValues[input] * outputDerivative[output];
+
+                accumulatedGradients[input][output] += optimizer.getUpdate(input, output, gradient);
+
+                double currentWeight = weights[input][output]; // weights[input][output];
+                // sum the derivative of the output with respect to the input for a previous layer to use
+                inputNodeGradient[input] += outputDerivative[output] * currentWeight;
+            }
+        }
+
+        // biases
+        for (int output=0; output<numOutputs; output++) {
+            // ADAM update
+            accumulatedGradients[numInputs][output] += optimizer.getUpdate(numInputs, output, outputDerivative[output]);
+        }
+
+        return inputNodeGradient;
+    }
+
+    @Override
+    public void applyAccumulatedGradients() {
+        double lrTimesL2 = optimizer.getLrTimesL2();
+        for (int input=0; input<numInputs; input++) {
+            for (int output=0; output<numOutputs; output++) {
+                double weight = weights[input][output];
+                weight += accumulatedGradients[input][output];
+                weight -= weight * lrTimesL2;
+                weights[input][output] = weight;
+            }
+        }
+        // biases
+        for (int output=0; output<numOutputs; output++) {
+            weights[numInputs][output] += accumulatedGradients[numInputs][output];
+        }
+
+        optimizer.incrementIteration();
+
+        // Clear accumulated gradients
+        for (int i=0; i<accumulatedGradients.length; i++) {
+            Arrays.fill(accumulatedGradients[i], 0);
+        }
     }
 
     @Override

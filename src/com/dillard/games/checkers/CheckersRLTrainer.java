@@ -1,125 +1,266 @@
 package com.dillard.games.checkers;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import com.dillard.games.checkers.MCTS.SearchResult;
+import com.dillard.games.checkers.MCTS.MCTSResult;
 
 public class CheckersRLTrainer {
     private Random random;
-    private static final int replayHistorySize = 16 * 1024;
-    private double exploitationFactor = 0.5; // TODO anneal up to 1.0
+    private static final int replayHistorySize = 64 * 1024;
+    private double explorationFactor = 0.5; // TODO start at 1.0, anneal down to 0.000001
+    private volatile boolean continueTraining = true;
+    private long lastProgressTimestamp = 0;
+    private AtomicInteger gamesPlayedSinceLastProgress = new AtomicInteger(0);
+    private CheckersValueNN trainingNN;
+    private List<TrainingExample> replayHistory = null;
+    private String replayHistoryFilename;
+    private String trainingNNFilename;
+    private long quittingTime = 0;
 
-    public CheckersRLTrainer(Random random) {
+    public CheckersRLTrainer(Random random, String replayHistoryFilename, String trainingNNFilename) {
         this.random = random;
+        this.trainingNNFilename = trainingNNFilename;
+        this.replayHistoryFilename = replayHistoryFilename;
     }
 
-    public CheckersValueNN train() {
-        CheckersValueNN nn = CheckersValueNN.build();
-        CheckersValueNN checkpointNN = nn.clone();
+    public CheckersValueNN train(long durationMs) throws FileNotFoundException, IOException, ClassNotFoundException {
+        loadOrDefaultNN();
 
-        final int maxIters = 50;
-//        final int toleranceIters = 4;
-//        final double tolerance = 0.01;
-//        double max = -1.0;
-//        Random rand = new Random(23498);
-//        List<Double> maxList = new ArrayList<>();
+        if (durationMs <= 0) {
+            return trainingNN;
+        }
 
-        List<TrainingExample> replayHistory = new ArrayList<>(replayHistorySize);
-        for (int i=0; i<maxIters; i++) {
 
-            GameResult result = playOneGameForTrainingData(nn, checkpointNN);
-            replayHistory.addAll(result.newTrainingExamples);
-            System.out.println(String.format("%.0f (%.6f) Player1 start? %b",
-                    result.finalScore, result.error, result.startingPlayer1Turn));
+        boolean loadReplayHistory = true;
+        if (loadReplayHistory) {
+            System.out.println("Loading replay history...");
+            loadOrDefaultReplayHistory();
+        } else {
+            System.out.println("Not loading replay history.");
+            replayHistory = new ArrayList<>();
+        }
 
-            // TODO should have a separate training thread!
-            train(nn, replayHistory);
+        quittingTime = System.currentTimeMillis() + durationMs;
 
-            if (i % 10 == 0) {
-                checkpointNN = nn.clone();
+        // Start our game threads
+        int numGameThreads = 3;
+        List<Thread> gameThreads = new ArrayList<>();
+        for (int i=0; i<numGameThreads; i++) {
+            Thread t = new Thread(() -> {
+               playGamesForTrainingData();
+            });
+            gameThreads.add(t);
+            t.start();
+        }
+
+        // Start our training thread
+        Thread trainingThread = new Thread(() -> {
+            trainFromExamples();
+        });
+        trainingThread.start();
+
+        // wait for our game threads to finish
+        for (int i=0; i<numGameThreads; i++) {
+            try {
+                gameThreads.get(i).join();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
+        }
 
-            if (replayHistory.size() > replayHistorySize) {
-                replayHistory = replayHistory.subList(1024, replayHistory.size());
-            }
+        // Stop our training thread
+        continueTraining = false;
+        try {
+            trainingThread.join();
+        } catch (InterruptedException ie) {
+            throw new RuntimeException(ie);
+        }
 
-            // TODO serialize network
-
-            // Convergence stuff
-//            System.out.println(String.format("%02d  %.4f  - %s", i, result.accuracy, new Date()));
+//      final int toleranceIters = 4;
+//      final double tolerance = 0.01;
+//      double max = -1.0;
+//      Random rand = new Random(23498);
+//      List<Double> maxList = new ArrayList<>();
+//        for (int i=0; i<maxIters; i++) {
 //
-//            if (accuracy > max) {
-//                max = accuracy;
+//            // TODO multi-thread. need a different checkpoint NN for each thread because they hold state.
+//
+//            GameResult result = playOneGameForTrainingData(checkpointNN);
+//            replayHistory.addAll(result.newTrainingExamples);
+//            System.out.println(String.format("%.0f (%.6f) Player1 start? %b",
+//                    result.finalScore, result.error, result.startingPlayer1Turn));
+//
+//            if (replayHistory.size() > replayHistorySize) {
+//                replayHistory = replayHistory.subList(1024, replayHistory.size());
 //            }
 //
-//            maxList.add(max);
-//
-//            if (maxList.size() > toleranceIters) {
-//                double ratio = (1.0 - max) / (1.0 - maxList.get(i - toleranceIters));
-//                if (ratio > 1 - tolerance) {
-//                    System.out.println("Converged");
-//                    break;
-//                }
+//            if (i % 10 == 0) {
+//                checkpointNN = trainingNN.clone();
 //            }
+//
+//            // TODO serialize network
+//
+//            // Convergence stuff
+////            System.out.println(String.format("%02d  %.4f  - %s", i, result.accuracy, new Date()));
+////
+////            if (accuracy > max) {
+////                max = accuracy;
+////            }
+////
+////            maxList.add(max);
+////
+////            if (maxList.size() > toleranceIters) {
+////                double ratio = (1.0 - max) / (1.0 - maxList.get(i - toleranceIters));
+////                if (ratio > 1 - tolerance) {
+////                    System.out.println("Converged");
+////                    break;
+////                }
+////            }
+//        }
+
+//        System.out.println(String.format("Made %d training examples", replayHistory.size()));
+
+        serializeNN(trainingNN, trainingNNFilename);
+        System.out.println("Saved NN to " + trainingNNFilename);
+
+        if (loadReplayHistory && !replayHistory.isEmpty()) {
+            serializeReplayHistory(replayHistory, replayHistoryFilename);
+            System.out.println(String.format("Saved replay history (%d) to ", replayHistory.size()) + replayHistoryFilename);
         }
 
-        // just for debugging
-        CheckersPlayer opponent = new RandomCheckersPlayer(new Random(9872345));
-        double evaluation = evaluate(nn, opponent, 20);
-        System.out.println(String.format("Evaluation: %f", evaluation));
-
-        return nn;
+        return trainingNN;
     }
 
-    private double evaluate(CheckersValueNN nn, CheckersPlayer opponent, int numGames) {
-        double sum = 0;
-        for (int i=0; i<numGames; i++) {
-            sum += playOneGameEvaluation(nn, opponent);
+    private void loadOrDefaultNN() throws FileNotFoundException, IOException, ClassNotFoundException {
+        trainingNN = loadNN(trainingNNFilename);
+        if (trainingNN == null) {
+            trainingNN = CheckersValueNN.build();
+        } else {
+            System.out.println("Loaded neural network");
         }
-        return sum / numGames;
     }
 
-    private double playOneGameEvaluation(CheckersValueNN nn, CheckersPlayer opponent) {
-        CheckersGame game = new CheckersGame(Math.random() < 0.5);
-        NNCheckersPlayer player = new NNCheckersPlayer(nn);
-        var mcts = new MCTS<CheckersMove, CheckersGame, NNCheckersPlayer>(player, MCTS_PRIOR_WEIGHT, exploitationFactor, random);
+    private void loadOrDefaultReplayHistory() throws FileNotFoundException, IOException, ClassNotFoundException {
+        replayHistory = loadReplayHistory(replayHistoryFilename);
+        if (replayHistory == null) {
+            replayHistory = new ArrayList<>(replayHistorySize);
+        } else {
+            System.out.println(String.format("Loaded replay history (%d)", replayHistory.size()));
+        }
+    }
 
-        while (!game.isTerminated()) {
-            if (game.isPlayer1Turn()) {
-                // MCTS search
-                mcts.resetRoot();
-                SearchResult<CheckersMove> result = mcts.search(game, NUM_MCTS_ITERS);
+    @SuppressWarnings("unchecked")
+    private List<TrainingExample> loadReplayHistory(String filename) throws FileNotFoundException, IOException, ClassNotFoundException {
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filename))) {
+            return (List<TrainingExample>) ois.readObject();
+        } catch (FileNotFoundException fnf) {
+            return null;
+        }
+    }
 
-                // take move
-                game.move(result.chosenMove);
+    private void serializeReplayHistory(List<TrainingExample> trainingExamples, String filename)
+            throws FileNotFoundException, IOException {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filename))) {
+            oos.writeObject(trainingExamples);
+        }
+    }
 
-                // update gametree in MCTS
-                mcts.advanceToMove(result.chosenMove);
-            } else {
-                CheckersMove move = opponent.move(game);
-                game.move(move);
-//                mcts.advanceToMove(move);
+    private void serializeNN(CheckersValueNN nn, String filename) throws FileNotFoundException, IOException {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filename))) {
+            oos.writeObject(nn);
+        }
+    }
+
+    private CheckersValueNN loadNN(String filename) throws FileNotFoundException, IOException, ClassNotFoundException {
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filename))) {
+            return (CheckersValueNN) ois.readObject();
+        } catch (FileNotFoundException fnf) {
+            return null;
+        }
+    }
+
+    private void playGamesForTrainingData() {
+        CheckersValueNN checkpointNN = trainingNN.clone();
+        lastProgressTimestamp = System.currentTimeMillis();
+        long lastCheckpointTime = System.currentTimeMillis();
+        while (System.currentTimeMillis() < quittingTime) {
+
+            GameResult result = playOneGameForTrainingData(checkpointNN);
+//            System.out.println(String.format("%.0f (%.6f) Player1 start? %b",
+//                    result.finalScore, result.error, result.startingPlayer1Turn));
+            gamesPlayedSinceLastProgress.incrementAndGet();
+
+            synchronized(this) { // so that this only runs once at a time
+                replayHistory.addAll(result.newTrainingExamples);
+                // Truncate replay history (global)
+                if (replayHistory.size() > replayHistorySize) {
+                    replayHistory = new ArrayList<>(replayHistory.subList(replayHistorySize / 10, replayHistory.size()));
+                }
+
+                // Report progress (global)
+                if (System.currentTimeMillis() - lastProgressTimestamp > 30000) {
+                    long time = System.currentTimeMillis();
+                    double gamesPerSecond = gamesPlayedSinceLastProgress.get() * 1000 / (double)(time - lastProgressTimestamp);
+                    lastProgressTimestamp = time;
+                    gamesPlayedSinceLastProgress.set(0);
+                    System.out.println(String.format("%.2f games/sec. minutes remaining %.2f",
+                            gamesPerSecond, (quittingTime - time) / 60000.0));
+                }
+            }
+
+            // Clone the training NN for this thread every 30s
+            if (System.currentTimeMillis() - lastCheckpointTime > 30000) {
+                checkpointNN = trainingNN.clone();
+                lastCheckpointTime = System.currentTimeMillis();
+            }
+        }
+    }
+
+    private void trainFromExamples() {
+        // Wait until we have some training examples
+        while (continueTraining && replayHistory.isEmpty()) {
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
         }
 
-        double p1Score = game.getFinalScore(true);
-        return p1Score;
+        long lastCheckpointTime = System.currentTimeMillis();
+        int miniBatchesTrained = 0;
+        while (continueTraining) {
+            trainMiniBatch(trainingNN, replayHistory);
+            miniBatchesTrained++;
+
+            if (miniBatchesTrained % 100 == 0) {
+                if (System.currentTimeMillis() - lastCheckpointTime > 1000 * 60 * 5) {
+                    lastCheckpointTime = System.currentTimeMillis();
+                    try {
+                        serializeNN(trainingNN, trainingNNFilename);
+                        System.out.println("Saved NN to " + trainingNNFilename);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
+        System.out.println(String.format("Trained %d mini batches", miniBatchesTrained));
     }
 
     final int maxOver = 10;
     final int miniBatchSize = 32;
-    final int NUM_MINI_BATCHES_PER_TRAINING = 10;
-    final double MAX_ERROR_VALUE = 1000.0;
+    final double MAX_ERROR_VALUE = Double.MAX_VALUE;
     final int NUM_MCTS_ITERS = 100;
     final double MCTS_PRIOR_WEIGHT = 20.0; // higher leads to more exploration in MCTS
-
-    private void train(CheckersValueNN nn, List<TrainingExample> replayHistory) {
-        for (int i=0; i<NUM_MINI_BATCHES_PER_TRAINING; i++) {
-            trainMiniBatch(nn, replayHistory);
-        }
-    }
 
     private void trainMiniBatch(CheckersValueNN nn, List<TrainingExample> replayHistory) {
         // TODO proper prioritization
@@ -147,7 +288,7 @@ public class CheckersRLTrainer {
         }
     }
 
-    private GameResult playOneGameForTrainingData(CheckersValueNN nn, CheckersValueNN checkpointNN) {
+    private GameResult playOneGameForTrainingData(CheckersValueNN nn) {
         // Random starting player
         CheckersGame game = new CheckersGame(Math.random() < 0.5);
         boolean startingPlayer1Turn = game.isPlayer1Turn();
@@ -158,8 +299,7 @@ public class CheckersRLTrainer {
         double sumError = 0;
 
         var mcts = new MCTS<CheckersMove, CheckersGame, NNCheckersPlayer>(
-                new PieceCountCheckersPlayer(), MCTS_PRIOR_WEIGHT, exploitationFactor, random);
-//                player, MCTS_PRIOR_WEIGHT, exploitationFactor, random);
+                player, MCTS_PRIOR_WEIGHT, explorationFactor, random);
 
         while (!game.isTerminated()) {
             // Evaluate state for loss
@@ -170,7 +310,7 @@ public class CheckersRLTrainer {
             lastStateValues[stateValueIdx] = networkResult.stateValue;
 
             // MCTS search
-            SearchResult<CheckersMove> result = mcts.search(game, NUM_MCTS_ITERS);
+            MCTSResult<CheckersMove> result = mcts.search(game, NUM_MCTS_ITERS);
 
             // Store training example
             trainingExamples.add(new TrainingExample(
@@ -183,8 +323,6 @@ public class CheckersRLTrainer {
 
             // take move
             game.move(result.chosenMove);
-
-            System.out.println(game);
 
             // update gametree in MCTS
             mcts.advanceToMove(result.chosenMove);

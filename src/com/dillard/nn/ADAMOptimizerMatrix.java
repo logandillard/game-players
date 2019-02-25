@@ -1,9 +1,12 @@
 package com.dillard.nn;
 
+import java.io.Serializable;
+
 /**
  * ADAM optimizer for a neural network weight matrix. Does ADAM SGD updates. Not aware of biases.
  */
-public final class ADAMOptimizerMatrix {
+public final class ADAMOptimizerMatrix implements Serializable {
+    private static final long serialVersionUID = 1L;
     private final double[][] adamM;
     private final double[][] adamV;
     private final double beta1 = 0.9;
@@ -44,7 +47,18 @@ public final class ADAMOptimizerMatrix {
             weight -= weight * lrTimesL2;
         }
         weights[row][col] = weight;
+    }
 
+    public final double getUpdate(int row, int col, double gradient) {
+        // ADAM update
+        adamM[row][col] = beta1 * adamM[row][col] + (1.0 - beta1) * gradient;
+        adamV[row][col] = beta2 * adamV[row][col] + (1.0 - beta2) * gradient * gradient;
+
+        double adjustedM = adamM[row][col] * beta1tMult;
+        double adjustedV = adamV[row][col] * beta2tMult;
+
+        double update = learningRate * (adjustedM / (Math.sqrt(adjustedV) + 0.00000001));
+        return update;
     }
 
     public final void incrementIteration() {
@@ -54,5 +68,9 @@ public final class ADAMOptimizerMatrix {
         // precompute these inverses to speed up using them later
         beta1tMult = 1.0 / (1.0 - beta1t);
         beta2tMult = 1.0 / (1.0 - beta2t);
+    }
+
+    public double getLrTimesL2() {
+        return lrTimesL2;
     }
 }

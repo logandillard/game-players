@@ -1,6 +1,9 @@
 package com.dillard.nn;
 
-public class ActivationFunctionTanH implements ActivationFunction {
+import java.io.Serializable;
+
+public class ActivationFunctionTanH implements ActivationFunction, Serializable {
+    private static final long serialVersionUID = 1L;
 
     @Override
     public final double derivative(double value) {

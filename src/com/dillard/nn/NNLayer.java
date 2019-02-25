@@ -7,4 +7,8 @@ public interface NNLayer extends Cloneable {
     double[] backprop(double[] errorGradient);
 
     NNLayer clone();
+
+    double[] accumulateGradients(double[] errorGradients);
+
+    void applyAccumulatedGradients();
 }

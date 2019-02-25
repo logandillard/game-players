@@ -1,8 +1,12 @@
 package com.dillard.games.checkers;
 
-public class Piece {
-	private PieceColor color;
-	private boolean isKing;
+import java.io.Serializable;
+
+public class Piece implements Serializable {
+    private static final long serialVersionUID = 1L;
+
+	public final PieceColor color;
+	public final boolean isKing;
 
 	private Piece(PieceColor color, boolean isKing) {
 		this.color = color;
@@ -33,6 +37,7 @@ public class Piece {
 	public PieceColor getColor() {
 		return color;
 	}
+
 	public boolean isKing() {
 		return isKing;
 	}

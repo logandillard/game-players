@@ -1,9 +1,12 @@
 package com.dillard.games.checkers;
 
+import java.io.Serializable;
 import java.util.Map;
 
 // Abstracts away the representation of the board. Doesn't know game logic/rules.
-public class CheckersBoard implements Cloneable {
+public class CheckersBoard implements Cloneable, Serializable {
+    private static final long serialVersionUID = 1L;
+
 	static final int NUM_ROWS = 8;
 	static final int NUM_COLS = 8;
 
@@ -67,11 +70,11 @@ public class CheckersBoard implements Cloneable {
 	}
 
 	public final boolean isLocationEmpty(CheckersLocation location) {
-		return getPiece(location) == null;
+		return boardPieces[location.row][location.col] == null;
 	}
 
 	public final Piece getPiece(CheckersLocation location) {
-		return boardPieces[location.getRow()][location.getCol()];
+		return boardPieces[location.row][location.col];
 	}
 
 
@@ -201,14 +204,15 @@ public class CheckersBoard implements Cloneable {
 		return sb.toString();
 	}
 
-	public static boolean isWithinBounds(int row) {
+	public static final boolean isWithinBounds(int row) {
 		return row >= 0 && row < NUM_ROWS;
 	}
-	public static boolean isWithinBounds(CheckersLocation l) {
+
+	public static final boolean isWithinBounds(CheckersLocation l) {
 		if (l == null) {
 			return false;
 		}
-		return isWithinBounds(l.getRow()) && isWithinBounds(l.getCol());
+		return isWithinBounds(l.row) && isWithinBounds(l.col);
 	}
 
 	public Piece[][] getBoardPieces() {

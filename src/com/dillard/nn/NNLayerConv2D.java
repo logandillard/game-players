@@ -21,6 +21,7 @@ public class NNLayerConv2D implements NNLayer, Serializable {
     private final int padding;
     private final double paddingValue;
     private double[][] weights;
+    private double[][] accumulatedGradients;
     private double[] inputValues;
     private double[] outputValues;
     private final ActivationFunction activationFunction;
@@ -60,6 +61,7 @@ public class NNLayerConv2D implements NNLayer, Serializable {
         optimizer = new ADAMOptimizerMatrix(numFilters, width * height * depth + 1,
                 learningRate, l2Regularization);
         weights = new double[numFilters][width * height * depth + 1]; // + 1 for biases
+        accumulatedGradients = new double[numFilters][width * height * depth + 1]; // + 1 for biases
         outputValues = new double[numOutputs];
 
         // initialize weights randomly
@@ -97,6 +99,7 @@ public class NNLayerConv2D implements NNLayer, Serializable {
         this.outputValues = outputValues;
         this.activationFunction = activationFunction;
         this.optimizer = optimizer;
+        accumulatedGradients = new double[numFilters][width * height * depth + 1]; // + 1 for biases
     }
 
     @Override
@@ -210,6 +213,93 @@ public class NNLayerConv2D implements NNLayer, Serializable {
         optimizer.incrementIteration();
 
         return inputNodeGradient;
+    }
+
+    @Override
+    public double[] accumulateGradients(double[] errorGradient) {
+        double[] inputNodeGradient = new double[numInputs];
+
+        double[] outputDerivatives = new double[errorGradient.length];
+        for (int output=0; output<numOutputs; output++) {
+            outputDerivatives[output] = errorGradient[output] * activationFunction.derivative(outputValues[output]);
+        }
+
+        for (int filter=0; filter<numFilters; filter++) {
+
+            for (int startRow=0 - padding, outputRow=0; startRow<inputNumCols + padding - height + 1; startRow += stride, outputRow++) {
+                for (int startCol=0 - padding, outputCol=0; startCol<inputNumCols + padding - width + 1; startCol += stride, outputCol++) {
+
+                    double outputDerivative = outputDerivatives[filter*numOutputRowsPerFilter*numOutputColsPerFilter +
+                                                                outputRow*numOutputColsPerFilter + outputCol];
+                    if (outputDerivative != 0.0) {
+                        for (int filterRow = 0; filterRow<height; filterRow++) {
+                            int inputRow = filterRow + startRow;
+                            for (int filterCol = 0; filterCol<width; filterCol++) {
+                                int inputCol = filterCol + startCol;
+
+                                for (int layer=0; layer<depth; layer++) {
+
+                                    double inputCellValue = paddingValue;
+                                    boolean isNotPadding = inputRow >= 0 && inputCol >= 0 && inputRow < inputNumRows && inputCol < inputNumCols;
+                                    if (isNotPadding) {
+                                        inputCellValue = inputValues[layer*inputNumRows*inputNumCols + inputRow*inputNumCols + inputCol];
+                                    }
+                                    double gradient = outputDerivative * inputCellValue;
+                                    int weightCol = layer*width*height + filterRow*width + filterCol;
+                                    accumulatedGradients[filter][weightCol] += optimizer.getUpdate(filter, weightCol, gradient);
+
+                                    // pass on the gradient to the next layer only if this is not padding
+                                    if (isNotPadding) {
+                                        double currentWeight = weights[filter][layer*width*height + filterRow*width + filterCol];
+                                        inputNodeGradient[layer*inputNumRows*inputNumCols + inputRow*inputNumCols + inputCol] +=
+                                                outputDerivative * currentWeight;
+                                    }
+                                }
+                            }
+                        }
+
+                        // biases
+                        int col = depth*width*height;
+                        accumulatedGradients[filter][col] += optimizer.getUpdate(filter, col, outputDerivative);
+                    }
+                }
+            }
+
+        }
+
+        return inputNodeGradient;
+    }
+
+    @Override
+    public void applyAccumulatedGradients() {
+        double lrTimesL2 = optimizer.getLrTimesL2();
+
+        for (int filter=0; filter<numFilters; filter++) {
+            for (int filterRow = 0; filterRow<height; filterRow++) {
+                for (int filterCol = 0; filterCol<width; filterCol++) {
+                    for (int layer=0; layer<depth; layer++) {
+                        int weightCol = layer*width*height + filterRow*width + filterCol;
+
+                        double weight = weights[filter][weightCol];
+                        weight += accumulatedGradients[filter][weightCol];
+                        weight -= weight * lrTimesL2;
+                        weights[filter][weightCol] = weight;
+                    }
+                }
+            }
+
+            // biases
+            int col = depth*width*height;
+            weights[filter][col] += accumulatedGradients[filter][col];
+        }
+
+        optimizer.incrementIteration();
+
+        // Clear accumulated gradients
+        for (int i=0; i<accumulatedGradients.length; i++) {
+            Arrays.fill(accumulatedGradients[i], 0);
+        }
+
     }
 
     @Override

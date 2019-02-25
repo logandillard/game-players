@@ -16,17 +16,17 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
     private MCTSPlayer<M, G> player;
     private double priorWeight;
     private Node<M, G> root = null;
-    private double exploitationFactor;
+    private double explorationFactor;
     private Random random;
 
-    public MCTS(MCTSPlayer<M, G> player, double priorWeight, double exploitationFactor, Random random) {
+    public MCTS(MCTSPlayer<M, G> player, double priorWeight, double explorationFactor, Random random) {
         this.player = player;
         this.priorWeight = priorWeight;
-        this.exploitationFactor = exploitationFactor;
+        this.explorationFactor = explorationFactor;
         this.random = random;
     }
 
-    public SearchResult<M> search(G game, int numIterations) {
+    public MCTSResult<M> search(G game, int numIterations) {
         if (root == null) {
             root = new Node<M, G>(game, 1.0, null);
         }
@@ -73,7 +73,7 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
         MCTSMove maxScoreMove = null;
         double maxScore = -Double.MAX_VALUE;
         var children = new ArrayList<>(root.children.entrySet());
-        Collections.shuffle(children);
+        Collections.shuffle(children, random);
         for (var entry : children) {
             Node<M, G> childNode = entry.getValue();
             double opponentMultiplier = childNode.game.isPlayer1Turn() == root.game.isPlayer1Turn() ? 1.0 : -1.0;
@@ -105,8 +105,10 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
         }
     }
 
-    public void advanceToMove(CheckersMove move) {
-        root = root.children.get(move);
+    public void advanceToMove(M move) {
+        if (root != null) {
+            root = root.children.get(move);
+        }
     }
 
     public void resetRoot() {
@@ -144,6 +146,7 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
 
     public static interface MCTSPlayer<M extends MCTSMove, G extends MCTSGame<M, G>> {
         StateEvaluation<M> evaluateState(G game);
+        M move(G game);
     }
 
     public static interface MCTSGame<M extends MCTSMove, G extends MCTSGame<M, G>> {
@@ -158,62 +161,65 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
 
     }
 
-    public SearchResult<M> buildResult(Node<M, G> root) {
-        List<ScoredMove<M>> visitScoredMoves = new ArrayList<>();
+    public MCTSResult<M> buildResult(Node<M, G> root) {
+        List<Scored<M>> visitScoredMoves = new ArrayList<>();
         for (Map.Entry<M, Node<M, G>> entry : root.children.entrySet()) {
-            visitScoredMoves.add(new ScoredMove<M>(entry.getKey(), entry.getValue().visitCount));
+            visitScoredMoves.add(new Scored<M>(entry.getKey(), entry.getValue().visitCount));
+        }
+
+        // Handle the 0-exploration case
+        if (explorationFactor <= 0) {
+            // L_infinity normalize (return max)
+            int maxIdx = 0;
+            double maxScore = visitScoredMoves.get(0).score;
+            List<Scored<M>> scoredMoves = new ArrayList<>();
+            for (int i=0; i<visitScoredMoves.size(); i++) {
+                double score = visitScoredMoves.get(i).score;
+                scoredMoves.add(new Scored<M>(visitScoredMoves.get(i).value, 0));
+                if (score > maxScore) {
+                    maxScore = score;
+                    maxIdx = i;
+                }
+            }
+            scoredMoves.get(maxIdx).score = 1.0;
+            return new MCTSResult<M>(scoredMoves, scoredMoves.get(maxIdx).value);
         }
 
         // select a move proportional to its exponentiated visit count, π(a|s0) = N(s0, a)^1/τ / SUM N(s0, b)^1/τ
         // where τ is a temperature parameter that controls the level of exploration
-        List<ScoredMove<M>> scoredMoves = new ArrayList<>();
-        double exponent = 1.0 / exploitationFactor;
+        List<Scored<M>> scoredMoves = new ArrayList<>();
+        double exponent = 1.0 / explorationFactor;
         double sum = 0;
         for (int i=0; i<visitScoredMoves.size(); i++) {
             double score = Math.pow(visitScoredMoves.get(i).score, exponent);
-            scoredMoves.add(new ScoredMove<M>(visitScoredMoves.get(i).move, score));
+            scoredMoves.add(new Scored<M>(visitScoredMoves.get(i).value, score));
             sum += score;
         }
         // Normalize move scores
-        for (ScoredMove<M> scoredMove : scoredMoves) {
+        for (Scored<M> scoredMove : scoredMoves) {
             scoredMove.score /= sum;
         }
 
         // Sample
         double threshold = random.nextDouble();
         double accum = 0;
-        M move = scoredMoves.get(scoredMoves.size() - 1).move;
+        M move = scoredMoves.get(scoredMoves.size() - 1).value;
         for (int i=0; i<scoredMoves.size(); i++) {
             accum += scoredMoves.get(i).score;
             if (accum >= threshold) {
-                move = scoredMoves.get(i).move;
+                move = scoredMoves.get(i).value;
                 break;
             }
         }
 
-        return new SearchResult<M>(scoredMoves, move);
+        return new MCTSResult<M>(scoredMoves, move);
     }
 
-    public static final class ScoredMove<M extends MCTSMove> {
-        public final M move;
-        public double score;
-
-        public ScoredMove(M move, double score) {
-            this.move = move;
-            this.score = score;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("%f  %s", score, move.toString());
-        }
-    }
-
-    public static final class SearchResult<M extends MCTSMove> {
-        public List<ScoredMove<M>> scoredMoves;
+    public static final class MCTSResult<M extends MCTSMove> {
+        public List<Scored<M>> scoredMoves;
         public M chosenMove;
 
-        public SearchResult(List<ScoredMove<M>> scoredMoves, M chosenMove) {
+        public MCTSResult(List<Scored<M>> scoredMoves, M chosenMove) {
             this.scoredMoves = scoredMoves;
             this.chosenMove = chosenMove;
         }

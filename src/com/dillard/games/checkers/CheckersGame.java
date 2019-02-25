@@ -11,7 +11,7 @@ import com.dillard.games.checkers.MCTS.MCTSGame;
 // Encapsulates all game logic
 @SuppressWarnings("deprecation")
 public class CheckersGame extends Observable implements MCTSGame<CheckersMove, CheckersGame> {
-	private static final int NUM_MOVES_NO_JUMPS_FOR_DRAW = 50;
+	private static final int NUM_MOVES_NO_JUMPS_FOR_DRAW = 100;
 	private static final boolean FORCED_JUMPS = true;
 
 	int numMovesNoJumps = 0;
@@ -51,6 +51,7 @@ public class CheckersGame extends Observable implements MCTSGame<CheckersMove, C
 		}
 
 		// check if move is an available move
+//		availableMoves = null; // TODO remove
 		if (availableMoves == null) {
 			getMoves();
 		}
@@ -77,7 +78,7 @@ public class CheckersGame extends Observable implements MCTSGame<CheckersMove, C
 
 		    // Get further jump moves
 			furtherJumpMoves = new ArrayList<>();
-			addMoves(null, furtherJumpMoves, to.getRow(), to.getCol(), piece, true, null);
+			addMoves(null, furtherJumpMoves, to.getRow(), to.getCol(), piece, true);
 			if (furtherJumpMoves.isEmpty()) {
 			    furtherJumpMoves = null;
 			}
@@ -115,15 +116,20 @@ public class CheckersGame extends Observable implements MCTSGame<CheckersMove, C
 	}
 
 	public List<CheckersMove> getMoves() {
+	    if (availableMoves != null) {
+	        return availableMoves;
+	    }
+
 		List<CheckersMove> moves = new ArrayList<>();
 		List<CheckersMove> jumpMoves = new ArrayList<>();
 		Piece[][] boardPieces  = board.getBoardPieces();
 
+		PieceColor currentPlayerColor = getCurrentPlayerColor();
 		for (int r=0; r < CheckersBoard.NUM_ROWS; r++) {
 			for (int c=r%2; c < CheckersBoard.NUM_COLS; c+=2) {
 				Piece p = boardPieces[r][c];
-				if (p != null && isCurrentPlayerColor(p.getColor())) {
-					addMoves(moves, jumpMoves, r, c, p, jumpMoves.size() > 0, null);
+				if (p != null && currentPlayerColor == p.color) {
+					addMoves(moves, jumpMoves, r, c, p, jumpMoves.size() > 0);
 				}
 			}
 		}
@@ -140,29 +146,29 @@ public class CheckersGame extends Observable implements MCTSGame<CheckersMove, C
 
 
 	private void addMoves(List<CheckersMove> moves, List<CheckersMove> jumpMoves, int r, int c, Piece piece,
-			boolean onlyJump, List<CheckersLocation> jumpedLocations) {
-		int signForward = piece.getColor() == player1Color ? 1 : -1;
+			boolean onlyJump) {
+		int signForward = piece.color == player1Color ? 1 : -1;
 
 		// Forward moves
-		addMovesInRow(signForward, moves, jumpMoves, r, c, piece, onlyJump, jumpedLocations);
+		addMovesInRow(signForward, moves, jumpMoves, r, c, piece, onlyJump);
 
 		// if king, backward moves
-		if (piece.isKing()) {
-			addMovesInRow(signForward * -1, moves, jumpMoves, r, c, piece, onlyJump, jumpedLocations);
+		if (piece.isKing) {
+			addMovesInRow(signForward * -1, moves, jumpMoves, r, c, piece, onlyJump);
 		}
 	}
 
 	private void addMovesInRow(int signDir, List<CheckersMove> moves, List<CheckersMove> jumpMoves, int r, int c, Piece piece,
-			boolean onlyJump, List<CheckersLocation> jumpedLocations) {
+			boolean onlyJump) {
 		int nextRow = r + signDir;
 		if (CheckersBoard.isWithinBounds(nextRow)) {
-			addMovesInRowCol(signDir, -1, moves, jumpMoves, r, c, piece, onlyJump, jumpedLocations);
-			addMovesInRowCol(signDir,  1, moves, jumpMoves, r, c, piece, onlyJump, jumpedLocations);
+			addMovesInRowCol(signDir, -1, moves, jumpMoves, r, c, piece, onlyJump);
+			addMovesInRowCol(signDir,  1, moves, jumpMoves, r, c, piece, onlyJump);
 		}
 	}
 
 	private void addMovesInRowCol(int rowSignDir, int colSignDir, List<CheckersMove> moves, List<CheckersMove> jumpMoves,
-			int r, int c, Piece piece, boolean onlyJump, List<CheckersLocation> jumpedLocations) {
+			int r, int c, Piece piece, boolean onlyJump) {
 		// If location is off board, return
 		int newCol = colSignDir + c;
 		if (!CheckersBoard.isWithinBounds(newCol)) return;
@@ -182,14 +188,18 @@ public class CheckersGame extends Observable implements MCTSGame<CheckersMove, C
 		Piece existingPiece = board.getPiece(newLocation);
 		if (existingPiece.getColor() == piece.getColor()) {
 			return;
-		}  else if (jumpedLocations == null || !jumpedLocations.contains(newLocation)){ // Location is occupied by opposite color
+		}  else { // Location is occupied by opposite color
 			// - make sure we haven't already jumped this piece
 
 			// Try the jump location
+		    int jumpRow = newRow + rowSignDir;
+		    int jumpCol = newCol + colSignDir;
+		    // If not on the board, then nevermind (return)
+		    if (!CheckersBoard.isWithinBounds(jumpRow)) return;
+		    if (!CheckersBoard.isWithinBounds(jumpCol)) return;
 			CheckersLocation jumpLocation = CheckersLocation.forLocation(newRow + rowSignDir, newCol + colSignDir);
-			// If not on board and empty, nevermind (return)
-			if (!CheckersBoard.isWithinBounds(jumpLocation) || !board.isLocationEmpty(jumpLocation) ||
-					(jumpedLocations != null && jumpedLocations.contains(jumpLocation)) ) {
+			// If not empty, nevermind (return)
+			if (!board.isLocationEmpty(jumpLocation)) {
 				return;
 			} else {
 			    // we can jump to this location
@@ -222,7 +232,6 @@ public class CheckersGame extends Observable implements MCTSGame<CheckersMove, C
 		}
 	}
 
-
 	private boolean isCurrentPlayerColor(PieceColor color) {
 		if (isPlayer1Turn()) {
 			return color == PieceColor.WHITE;
@@ -231,6 +240,13 @@ public class CheckersGame extends Observable implements MCTSGame<CheckersMove, C
 		}
 	}
 
+	private PieceColor getCurrentPlayerColor() {
+        if (isPlayer1Turn()) {
+            return PieceColor.WHITE;
+        } else {
+            return PieceColor.BLACK;
+        }
+    }
 
 	public boolean isTerminated() {
 		if (availableMoves == null) {
@@ -245,7 +261,7 @@ public class CheckersGame extends Observable implements MCTSGame<CheckersMove, C
     		availableMoves.size() == 0 ;
 	}
 
-	public double evaluate(boolean player1) {
+	public double evaluatePieceCount(boolean player1) {
 		if (player1) {
 			return board.getNumWhitePieces() - board.getNumBlackPieces() +
 				(0.5 * (board.getNumWhiteKings() - board.getNumBlackKings()) );
@@ -255,16 +271,39 @@ public class CheckersGame extends Observable implements MCTSGame<CheckersMove, C
 		}
 	}
 
-
 	public double getFinalScore(boolean player1) {
-		double evalScore = evaluate(player1);
-		if (evalScore > 0) {
-			return 1;
-		} if (evalScore < 0) {
-			return -1;
-		} else {
-			return 0;
-		}
+       if (availableMoves == null) {
+            getMoves();
+        }
+
+       if (board.getNumWhitePieces() == 0) {
+           if (player1) {
+               return -1.0;
+           } else {
+               return 1.0;
+           }
+       }
+       if (board.getNumBlackPieces() == 0) {
+           if (player1) {
+               return 1.0;
+           } else {
+               return -1.0;
+           }
+       }
+
+       if (availableMoves.isEmpty()) {
+           if (isPlayer1Turn() == player1) {
+               return -1.0;
+           } else {
+               return 1.0;
+           }
+       }
+
+       if (numMovesNoJumps >= NUM_MOVES_NO_JUMPS_FOR_DRAW) {
+           return 0.0;
+       }
+
+       throw new RuntimeException("Called getFinalScore, but the game is not terminated");
 	}
 
 	public boolean isPlayer1Turn() {

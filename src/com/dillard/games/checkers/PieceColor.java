@@ -1,5 +1,7 @@
 package com.dillard.games.checkers;
 
-public enum PieceColor {
+import java.io.Serializable;
+
+public enum PieceColor implements Serializable {
 	BLACK, WHITE;
 }
