@@ -116,9 +116,23 @@ public class NNLayerConv2D implements NNLayer, Serializable {
                 );
     }
 
+    @Override
+    public NNLayerConv2D cloneWeights() {
+        return new NNLayerConv2D(
+                numInputs, inputNumRows, inputNumCols, numOutputs, numFilters,
+                numOutputsPerFilter, numOutputRowsPerFilter, numOutputColsPerFilter, width, height,
+                depth, stride, padding, paddingValue,
+                Utils.copyArray2D(weights),
+                null, // inputValues.clone(),
+                new double[numOutputs], // outputValues.clone(),
+                activationFunction,
+                null // optimizer.copyNew()
+                );
+    }
+
     public double[] activate(final double[] inputValues) {
         this.inputValues = inputValues;
-        Arrays.fill(outputValues, 0.0);
+        double[] outputValues = new double[numOutputs];
         double[][] filterOutputs = new double[numFilters][];
 
         for (int filter=0; filter<weights.length; filter++) {
@@ -157,7 +171,7 @@ public class NNLayerConv2D implements NNLayer, Serializable {
                     outputValues, numOutputsPerFilter * filter,
                     filterOutput.length);
         }
-
+        this.outputValues = outputValues;
         return outputValues;
     }
 

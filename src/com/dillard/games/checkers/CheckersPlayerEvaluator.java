@@ -10,27 +10,47 @@ public class CheckersPlayerEvaluator {
     private int mctsIterations;
     private boolean printGameSummaries = false;
     private boolean printMoves = false;
+    private int nThreads = 4;
 
     public CheckersPlayerEvaluator(double priorWeight, int mctsIterations) {
         this.priorWeight = priorWeight;
         this.mctsIterations = mctsIterations;
     }
 
-    public CheckersPlayerEvaluator(double priorWeight, int mctsIterations, boolean printGameSummaries, boolean printMoves) {
+    public CheckersPlayerEvaluator(double priorWeight, int mctsIterations, int nThreads, boolean printGameSummaries, boolean printMoves) {
         this.priorWeight = priorWeight;
         this.mctsIterations = mctsIterations;
         this.printGameSummaries = printGameSummaries;
         this.printMoves = printMoves;
+        this.nThreads = nThreads;
     }
 
-    public double evaluate(MCTSPlayer<CheckersMove, CheckersGame> player,
+    public EvaluationResult evaluate(
+            MCTSPlayer<CheckersMove, CheckersGame> player,
             MCTSPlayer<CheckersMove, CheckersGame> opponent,
             int numGames, Random random) {
-        double sum = 0;
+        EvaluationResult result = new EvaluationResult();
+
+//        ExecutorService es = Executors.newFixedThreadPool(nThreads);
+//        for (int i=0; i<numGames; i++) {
+//            es.submit(() -> {
+//                double score = playOneGameEvaluation(player, opponent, random);
+//                result.addResult(score);
+//            });
+//        }
+//        es.shutdown();
+//        try {
+//            es.awaitTermination(10, TimeUnit.MINUTES);
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
+
         for (int i=0; i<numGames; i++) {
-            sum += playOneGameEvaluation(player, opponent, random);
+            double score = playOneGameEvaluation(player, opponent, random);
+            result.addResult(score);
         }
-        return sum / numGames;
+
+        return result;
     }
 
     private double playOneGameEvaluation(
@@ -40,14 +60,11 @@ public class CheckersPlayerEvaluator {
         boolean player1Starts = Math.random() < 0.5;
         CheckersGame game = new CheckersGame(player1Starts);
         var mcts = new MCTS<CheckersMove, CheckersGame, NNCheckersPlayer>(
-                player, priorWeight, 0.5, random);
+                player, priorWeight, 0.0, random);
         var opponentMCTS = new MCTS<CheckersMove, CheckersGame, NNCheckersPlayer>(
                 opponent, priorWeight, 0.5, random);
 
         while (!game.isTerminated()) {
-//            if (game.cloneBoard().getNumBlackPieces() == 1) {
-//                String s = "";
-//            }
             if (printMoves) {
                 System.out.println("P1? " + game.isPlayer1Turn());
             }
@@ -84,5 +101,34 @@ public class CheckersPlayerEvaluator {
         }
 
         return p1Score;
+    }
+
+    public static final class EvaluationResult {
+        public double scoreSum;
+        public int numWins;
+        public int numLosses;
+        public int numDraws;
+        public int numGames;
+
+        public void addResult(double score) {
+            numGames++;
+            scoreSum += score;
+            if (score == 0.0) {
+                numDraws++;
+            } else if (score < 0) {
+                numLosses++;
+            } else {
+                numWins++;
+            }
+        }
+
+        public double getScore() {
+            return scoreSum / numGames;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("score: %.2f wins: %d losses: %d draws %d", getScore(), numWins, numLosses, numDraws);
+        }
     }
 }

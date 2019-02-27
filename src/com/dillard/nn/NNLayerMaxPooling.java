@@ -34,9 +34,16 @@ public class NNLayerMaxPooling implements NNLayer {
     }
 
     @Override
+    public NNLayerMaxPooling cloneWeights() {
+        return new NNLayerMaxPooling(numInputs, layerSize, numOutputs,
+                new double[numOutputs], // outputValues.clone(),
+                null); // selectedOutputValues.clone());
+    }
+
+    @Override
     public double[] activate(double[] inputValues) {
-        this.outputValues = new double[numInputs/layerSize];
-        this.selectedOutputValues = new int[numOutputs];
+        double[] outputValues = new double[numOutputs];
+        int[] selectedOutputValues = new int[numOutputs];
 
         for (int filter = 0; filter<numOutputs; filter++) {
             double max = -Double.MAX_VALUE;
@@ -51,7 +58,8 @@ public class NNLayerMaxPooling implements NNLayer {
             selectedOutputValues[filter] = filter * layerSize + maxIdx;
             outputValues[filter] = max;
         }
-
+        this.selectedOutputValues = selectedOutputValues;
+        this.outputValues = outputValues;
         return outputValues;
     }
 

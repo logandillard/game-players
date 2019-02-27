@@ -1,7 +1,6 @@
 package com.dillard.nn;
 
 import java.io.Serializable;
-import java.util.Arrays;
 
 /**
  * For TD (Temporal Difference) learning.
@@ -62,7 +61,7 @@ public class NNLayerFullyConnectedTD implements Serializable {
 
     public double[] activate(double[] inputValues) {
         this.inputValues = inputValues;
-        Arrays.fill(outputValues, 0.0);
+        double[] outputValues = new double[numOutputs];
         for (int input=0; input<numInputs; input++) {
             if (inputValues[input] == 0.0) {
                 continue;
@@ -79,6 +78,7 @@ public class NNLayerFullyConnectedTD implements Serializable {
         for (int output=0; output<numOutputs; output++) {
             outputValues[output] = activationFunction.activate(outputValues[output]);
         }
+        this.outputValues = outputValues;
         return outputValues;
     }
 

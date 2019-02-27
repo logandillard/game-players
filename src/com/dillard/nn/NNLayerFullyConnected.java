@@ -62,9 +62,19 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
     }
 
     @Override
+    public NNLayerFullyConnected cloneWeights() {
+        return new NNLayerFullyConnected(numInputs, numOutputs,
+                Utils.copyArray2D(weights),
+                null, // inputValues
+                new double[numOutputs], // outputValues
+                activationFunction,
+                null); // optimizer
+    }
+
+    @Override
     public double[] activate(double[] inputValues) {
         this.inputValues = inputValues;
-        Arrays.fill(outputValues, 0.0);
+        double[] outputValues = new double[numOutputs];
         for (int input=0; input<numInputs; input++) {
             if (inputValues[input] == 0.0) {
                 continue;
@@ -81,6 +91,7 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
         for (int output=0; output<numOutputs; output++) {
             outputValues[output] = activationFunction.activate(outputValues[output]);
         }
+        this.outputValues = outputValues;
         return outputValues;
     }
 

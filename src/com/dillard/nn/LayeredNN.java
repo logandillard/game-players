@@ -36,6 +36,14 @@ public class LayeredNN implements Serializable, Cloneable {
         return new LayeredNN(l);
     }
 
+    public LayeredNN cloneWeights() {
+        NNLayer[] l = new NNLayer[this.layers.length];
+        for (int i=0; i<l.length; i++) {
+            l[i] = layers[i].cloneWeights();
+        }
+        return new LayeredNN(l);
+    }
+
     public double[] activate(double[] inputValues) {
         for (NNLayer layer : layers) {
             inputValues = layer.activate(inputValues);

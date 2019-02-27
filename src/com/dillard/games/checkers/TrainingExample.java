@@ -10,14 +10,16 @@ public class TrainingExample implements Serializable {
     public double finalGameValue;
     public final List<Scored<CheckersMove>> scoredMoves;
     public double priority;
+    public double importanceWeight;
 
     public TrainingExample(CheckersBoard state, boolean isPlayer1, double finalGameValue,
-            List<Scored<CheckersMove>> scoredMoves, double priority) {
+            List<Scored<CheckersMove>> scoredMoves, double priority, double importanceWeight) {
         this.state = state;
         this.isPlayer1 = isPlayer1;
         this.finalGameValue = finalGameValue;
         this.scoredMoves = scoredMoves;
         this.priority = priority;
+        this.importanceWeight = importanceWeight;
     }
 
     @Override

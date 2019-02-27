@@ -38,6 +38,13 @@ public class CheckersValueNN implements Serializable {
         return new CheckersValueNN(nn.clone());
     }
 
+    /**
+     * Does not clone fields related to ongoing learning, just weights for making predictions.
+     */
+    public CheckersValueNN cloneWeights() {
+        return new CheckersValueNN(nn.cloneWeights());
+    }
+
     public StateEvaluation<CheckersMove> evaluateState(CheckersGame game, List<CheckersMove> moves) {
 
         double[] inputs = createNNInputs(game.getBoardPieces(), !game.isPlayer1Turn());
@@ -54,9 +61,10 @@ public class CheckersValueNN implements Serializable {
             scores.add(score);
         }
 
-        // Softmax to normalize scores to be probabilities
-        // Softmax both the scores-by-move and the full move probs array
-        softmaxInPlace(scores);
+        // Should I change the outputs to be linear and softmax,
+//        softmaxInPlace(scores);
+        // Or should I use tanh scores +1, and normalize to sum to 1?
+        normalizeTanHScoresToProbabilities(scores);
 
         return new StateEvaluation<>(stateValue, moves, scores);
     }
@@ -122,6 +130,16 @@ public class CheckersValueNN implements Serializable {
         }
     }
 
+    private void normalizeTanHScoresToProbabilities(List<Double> scores) {
+        double sum = 0;
+        for (double d : scores) {
+            sum += d + 1.0;
+        }
+        for (int i=0; i<scores.size(); i++) {
+            scores.set(i, (scores.get(i) + 1.0) / sum);
+        }
+    }
+
     public double error(TrainingExample te) {
         double[] outputs = nn.activate(createNNInputs(te.state.getBoardPieces(), !te.isPlayer1));
         double[] correctOutputs = createCorrectOutputs(te, outputs);
@@ -137,17 +155,17 @@ public class CheckersValueNN implements Serializable {
         for (var te : miniBatch) {
             double[] outputs = nn.activate(createNNInputs(te.state.getBoardPieces(), !te.isPlayer1));
             double[] correctOutputs = createCorrectOutputs(te, outputs);
-            double[] errorGradients = errorGradients(outputs, correctOutputs);
+            double[] errorGradients = errorGradients(outputs, correctOutputs, te.importanceWeight);
 
             nn.accumulateGradients(errorGradients);
         }
         nn.applyAccumulatedGradients();
     }
 
-    private double[] errorGradients(double[] outputs, double[] correctOutputs) {
+    private double[] errorGradients(double[] outputs, double[] correctOutputs, double importanceWeight) {
         double[] errorGradients = new double[outputs.length];
         for (int i=0; i<outputs.length; i++) {
-            errorGradients[i] = correctOutputs[i] - outputs[i];
+            errorGradients[i] = (correctOutputs[i] - outputs[i]) * importanceWeight;
         }
         return errorGradients;
     }
