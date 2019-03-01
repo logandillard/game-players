@@ -1,6 +1,7 @@
 package com.dillard.games.checkers;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -18,6 +19,8 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
     private Node<M, G> root = null;
     private double explorationFactor;
     private Random random;
+    private static final double noiseEpsilon = 0.25;
+    private static final double DIRICHLET_VALUE = 0.4;
 
     public MCTS(MCTSPlayer<M, G> player, double priorWeight, double explorationFactor, Random random) {
         this.player = player;
@@ -26,17 +29,36 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
         this.random = random;
     }
 
-    public MCTSResult<M> search(G game, int numIterations) {
+    public MCTSResult<M> search(G game, int numIterations, boolean useDirichletNoise) {
         if (root == null) {
             root = new Node<M, G>(game, 1.0, null);
         }
 
-        // TODO add dirichlet noise for initial root actions
+        // Adding Dirichlet noise to the prior probabilities in the root node s0,
+        // specifically P(s, a) = (1 − ep)p + ep*η, where η ∼ Dir(0.03) and ep = 0.25.
+        // This noise ensures that all moves may be tried, but the search may still overrule bad moves
+        if (useDirichletNoise) {
+            expandNode(root);
+            List<Node<M, G>> children = new ArrayList<>(root.children.values());
+            double[] dirichletNoise = dirichletNoise(children.size());
+            for (int i=0; i<children.size(); i++) {
+                Node<M, G> child = children.get(i);
+                child.priorProb = (1.0 - noiseEpsilon) * child.priorProb + noiseEpsilon * dirichletNoise[i];
+            }
+        }
+
         for (int i=0; i<numIterations; i++) {
             search(root);
         }
 
         return buildResult(root);
+    }
+
+    private double[] dirichletNoise(int n) {
+        double[] p = new double[n];
+        Arrays.fill(p, DIRICHLET_VALUE);
+        Dirichlet dirichlet = new Dirichlet(p);
+        return dirichlet.nextDistribution();
     }
 
     private double search(Node<M, G> node) {
@@ -228,5 +250,9 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
         public String toString() {
             return chosenMove.toString() + " " + scoredMoves.toString();
         }
+    }
+
+    public void setExplorationFactor(double e) {
+        this.explorationFactor = e;
     }
 }

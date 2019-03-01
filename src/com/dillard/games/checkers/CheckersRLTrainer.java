@@ -11,18 +11,17 @@ import java.util.function.Consumer;
 import com.dillard.games.checkers.MCTS.MCTSResult;
 
 public class CheckersRLTrainer {
-    private Random random;
     private static final int replayHistorySize = 128 * 1024; // TODO AlphaGoZero uses 500k
     private static final long NN_CHECKPOINT_INTERVAL_MS = 1000 * 60 * 5; // 5 minutes
     private double explorationFactor = 0.5; // TODO start at 1.0, anneal down to 0
-    private volatile boolean continueTraining = true;
-    private long lastProgressTimestamp = 0;
-    private AtomicInteger gamesPlayedSinceLastProgress = new AtomicInteger(0);
+    private Random random;
     private CheckersValueNN trainingNN;
     private List<TrainingExample> replayHistory = null;
     private PrioritizedSampler prioritizedSampler;
-    private String trainingNNFilename;
+    private volatile boolean continueTraining = true;
     private long quittingTime = 0;
+    private long lastProgressTimestamp = 0;
+    private AtomicInteger gamesPlayedSinceLastProgress = new AtomicInteger(0);
     private Consumer<CheckersValueNN> nnCheckpointer;
 
     public CheckersRLTrainer(Random random, Consumer<CheckersValueNN> nnCheckpointer) {
@@ -37,12 +36,7 @@ public class CheckersRLTrainer {
         if (this.replayHistory == null) {
             this.replayHistory = new ArrayList<>();
         }
-
-        long start = System.currentTimeMillis();
         prioritizedSampler.addAll(replayHistory);
-        long end = System.currentTimeMillis();
-        System.out.println("Adding " + replayHistory.size() +
-                " TEs to prioritized sampler took " + (end - start) + "ms");
 
         trainingNN = nn;
         if (trainingNN == null) {
@@ -89,50 +83,6 @@ public class CheckersRLTrainer {
             throw new RuntimeException(ie);
         }
 
-//      final int toleranceIters = 4;
-//      final double tolerance = 0.01;
-//      double max = -1.0;
-//      Random rand = new Random(23498);
-//      List<Double> maxList = new ArrayList<>();
-//        for (int i=0; i<maxIters; i++) {
-//
-//            // TODO multi-thread. need a different checkpoint NN for each thread because they hold state.
-//
-//            GameResult result = playOneGameForTrainingData(checkpointNN);
-//            replayHistory.addAll(result.newTrainingExamples);
-//            System.out.println(String.format("%.0f (%.6f) Player1 start? %b",
-//                    result.finalScore, result.error, result.startingPlayer1Turn));
-//
-//            if (replayHistory.size() > replayHistorySize) {
-//                replayHistory = replayHistory.subList(1024, replayHistory.size());
-//            }
-//
-//            if (i % 10 == 0) {
-//                checkpointNN = trainingNN.clone();
-//            }
-//
-//            // TODO serialize network
-//
-//            // Convergence stuff
-////            System.out.println(String.format("%02d  %.4f  - %s", i, result.accuracy, new Date()));
-////
-////            if (accuracy > max) {
-////                max = accuracy;
-////            }
-////
-////            maxList.add(max);
-////
-////            if (maxList.size() > toleranceIters) {
-////                double ratio = (1.0 - max) / (1.0 - maxList.get(i - toleranceIters));
-////                if (ratio > 1 - tolerance) {
-////                    System.out.println("Converged");
-////                    break;
-////                }
-////            }
-//        }
-
-//        System.out.println(String.format("Made %d training examples", replayHistory.size()));
-
         return new TrainingResult(trainingNN, replayHistory);
     }
 
@@ -162,12 +112,7 @@ public class CheckersRLTrainer {
                 if (replayHistory.size() > replayHistorySize) {
                     replayHistory = new ArrayList<>(replayHistory.subList(replayHistorySize / 10, replayHistory.size()));
                     prioritizedSampler = new PrioritizedSampler(random);
-                    long start = System.currentTimeMillis();
                     prioritizedSampler.addAll(replayHistory);
-                    long end = System.currentTimeMillis();
-                    System.out.println("Adding " + replayHistory.size() +
-                            " TEs to prioritized sampler took " + (end - start) + "ms");
-
                 } else {
                     prioritizedSampler.addAll(result.newTrainingExamples);
                 }
@@ -186,7 +131,7 @@ public class CheckersRLTrainer {
             // Clone the training NN
             // AlphaGoZero checkpoints every 1k training steps
             gamesPlayedSinceCheckpointNN++;
-            if (gamesPlayedSinceCheckpointNN >= 10) {
+            if (gamesPlayedSinceCheckpointNN >= 20) {
                 checkpointNN = trainingNN.cloneWeights();
                 gamesPlayedSinceCheckpointNN = 0;
             }
@@ -206,6 +151,7 @@ public class CheckersRLTrainer {
         long lastCheckpointTime = System.currentTimeMillis();
         int miniBatchesTrained = 0;
         while (continueTraining) {
+            // train
             trainMiniBatch(trainingNN, prioritizedSampler);
             miniBatchesTrained++;
 
@@ -216,7 +162,7 @@ public class CheckersRLTrainer {
                     if (nnCheckpointer != null) {
                         try {
                             nnCheckpointer.accept(trainingNN);
-                            System.out.println("Saved NN to " + trainingNNFilename);
+                            System.out.println("Saved NN");
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
@@ -227,7 +173,7 @@ public class CheckersRLTrainer {
         System.out.println(String.format("Trained %d mini batches", miniBatchesTrained));
     }
 
-    final int maxOver = 10;
+//    final int maxOver = 10;
     final int miniBatchSize = 32;
     final double MAX_ERROR_VALUE = 1000;
     final int NUM_MCTS_ITERS = 100;
@@ -302,7 +248,12 @@ public class CheckersRLTrainer {
             lastStateValues[stateValueIdx] = networkResult.stateValue;
 
             // MCTS search
-            MCTSResult<CheckersMove> result = mcts.search(game, NUM_MCTS_ITERS);
+            // TODO is this a good idea?
+            // if either player has < N pieces left, stop exploration
+            if (game.getMinPlayerPieceCount() < 2) {
+                mcts.setExplorationFactor(0);
+            }
+            MCTSResult<CheckersMove> result = mcts.search(game, NUM_MCTS_ITERS, true);
 
             // Store training example
             trainingExamples.add(new TrainingExample(

@@ -10,7 +10,7 @@ import com.dillard.games.NoLookNNPlayer;
 import com.dillard.nn.IncorrectInputsException;
 import com.dillard.nn.OldBrokenNeuralNetwork;
 
-public class NNMancalaPlayer extends NoLookNNPlayer<Mancala> implements NNPlayer<Mancala> {
+public class NNMancalaPlayer extends NoLookNNPlayer<MancalaMove, Mancala> implements NNPlayer<MancalaMove, Mancala> {
 	public static final String MODEL_FILE = "model.ser";
 	public static final double INITIAL_WEIGHT = 0.025;
 	public static final boolean RANDOM_INITIAL_WEIGHT = true;

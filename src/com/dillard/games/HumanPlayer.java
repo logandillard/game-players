@@ -2,7 +2,7 @@ package com.dillard.games;
 
 import java.util.List;
 
-public abstract class HumanPlayer<G extends Game> implements GamePlayer<G> {
+public abstract class HumanPlayer<M extends Move, G extends Game<M, G>> implements GamePlayer<M, G> {
 	protected int lowMove, highMove, offset;
 	protected IOUtilitiesInterface iou;
 
@@ -16,9 +16,9 @@ public abstract class HumanPlayer<G extends Game> implements GamePlayer<G> {
 		this.offset = offset;
 	}
 
-	public Move move(G theGame, boolean printBoardAndMessage) {
+	public M move(G theGame, boolean printBoardAndMessage) {
 		String message = "";
-		List<Move> moves = theGame.getMoves();
+		List<M> moves = theGame.getMoves();
 		if(printBoardAndMessage) {
 			System.out.println("\n\n" + theGame.toString());
 			message = "\nYour move: ";
@@ -26,9 +26,9 @@ public abstract class HumanPlayer<G extends Game> implements GamePlayer<G> {
 		return getMove(iou, message, theGame, moves);
 	}
 
-	protected abstract Move getMove(IOUtilitiesInterface iou2, String message, G theGame, List<Move> moves) ;
+	protected abstract M getMove(IOUtilitiesInterface iou2, String message, G theGame, List<M> moves) ;
 
-	public Move move(G theGame) {
+	public M move(G theGame) {
 		return move(theGame, true);
 	}
 

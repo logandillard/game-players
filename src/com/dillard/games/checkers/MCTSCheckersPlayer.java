@@ -17,7 +17,7 @@ public class MCTSCheckersPlayer implements CheckersPlayer {
     @Override
     public CheckersMove move(CheckersGame game) {
         mcts.resetRoot(); // Cannot reuse search trees through this interface because we don't know about the opponent's moves
-        var result = mcts.search(game, numIterations);
+        var result = mcts.search(game, numIterations, true);
         mcts.advanceToMove(result.chosenMove);
         return result.chosenMove;
     }

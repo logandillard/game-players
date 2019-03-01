@@ -2,10 +2,10 @@ package com.dillard.games;
 
 import java.util.List;
 
-public class RandomPlayer implements GamePlayer {
+public class RandomPlayer<M extends Move, G extends Game<M, G>> implements GamePlayer<M, G> {
 
-	public Move move(Game theGame) {
-		List<Move> moves = theGame.getMoves();
+	public M move(G theGame) {
+		List<M> moves = theGame.getMoves();
 		return moves.get((int)(Math.random() * moves.size()));
 	}
 

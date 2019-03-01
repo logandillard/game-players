@@ -33,13 +33,13 @@ public class CheckerBoardUI extends JPanel implements ActionListener, MouseListe
 	private CheckersGame model;
 //	private CheckersLocation selectedLocation = null;
 	private CheckersBoardSquare selectedSquare = null;
-	private List<Move> currentMoves = null;
+	private List<CheckersMove> currentMoves = null;
 	private boolean isPlayer1Turn = true;
-	GamePlayer<CheckersGame> player1;
-	GamePlayer<CheckersGame> player2;
+	GamePlayer<CheckersMove, CheckersGame> player1;
+	GamePlayer<CheckersMove, CheckersGame> player2;
 	JTextArea log;
 
-	public CheckerBoardUI(CheckersGame model, GamePlayer<CheckersGame> player1, GamePlayer<CheckersGame> player2, JTextArea log) {
+	public CheckerBoardUI(CheckersGame model, GamePlayer<CheckersMove, CheckersGame> player1, GamePlayer<CheckersMove, CheckersGame> player2, JTextArea log) {
 		super();
 		this.model = model;
 		model.addObserver(this);
@@ -169,9 +169,9 @@ public class CheckerBoardUI extends JPanel implements ActionListener, MouseListe
 		}
 	}
 
-	private void getAndDoMove(GamePlayer<CheckersGame> player) {
+	private void getAndDoMove(GamePlayer<CheckersMove, CheckersGame> player) {
 		try {
-			Move m = player.move(model);
+			CheckersMove m = player.move(model);
 			model.move(m);
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -230,7 +230,7 @@ public class CheckerBoardUI extends JPanel implements ActionListener, MouseListe
 		// Is the to appropriate?
 		for (CheckersMove m : fromMoves) {
 			// TODO this won't work with multiple jumps
-			if (m.getTo().equals(to.getCheckersLocation())) {
+			if (m.to.equals(to.getCheckersLocation())) {
 				return m;
 			}
 		}
@@ -245,7 +245,7 @@ public class CheckerBoardUI extends JPanel implements ActionListener, MouseListe
 			currentMoves = model.getMoves();
 		}
 		for (Move m : currentMoves) {
-			if (((CheckersMove)m).getFrom().equals(from.getCheckersLocation())) {
+			if (((CheckersMove)m).from.equals(from.getCheckersLocation())) {
 				fromMoves.add((CheckersMove)m);
 			}
 		}

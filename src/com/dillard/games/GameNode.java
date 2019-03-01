@@ -1,24 +1,23 @@
 package com.dillard.games;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
-public class GameNode<G extends Game> implements Comparable {
+public class GameNode<M extends Move, G extends Game<M, G>> implements Comparable<GameNode<M, G>> {
 	private G game;
 	private double score;
-	private ArrayList<GameNode<G>> children;
-	
-	
-	//Constructor
+	private List<GameNode<M, G>> children;
+
 	GameNode(G g) {
-		game = (G) g.clone();
+		game = g.clone();
 		children = null;
 	}
-	
-	public void addChild(GameNode<G> child) {
-		if(children == null) children = new ArrayList<GameNode<G>>();
+
+	public void addChild(GameNode<M, G> child) {
+		if(children == null) children = new ArrayList<GameNode<M, G>>();
 		children.add(child);
 	}
-	
-	public ArrayList<GameNode<G>> getChildren() {
+
+	public List<GameNode<M, G>> getChildren() {
 		return children;
 	}
 //	public void setChildren(ArrayList<GameNode> children) {
@@ -39,11 +38,11 @@ public class GameNode<G extends Game> implements Comparable {
 	public void setScore(double score) {
 		this.score = score;
 	}
-	
-	public int compareTo(Object o) {
+
+	public int compareTo(GameNode<M, G> o) {
 		if(!(o instanceof GameNode)) throw new ClassCastException();
-		
-		double scoreDiff = this.getScore() - ((GameNode)o).getScore();
+
+		double scoreDiff = this.getScore() - o.getScore();
 		if(scoreDiff > 0) {
 			return 1;
 		}
@@ -52,8 +51,9 @@ public class GameNode<G extends Game> implements Comparable {
 		}
 		else return 0;
 	}
-	
-	public String toString() {
+
+	@Override
+    public String toString() {
 		return game.toString() + "Score: " + getScore();
 	}
 }

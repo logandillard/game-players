@@ -18,56 +18,62 @@ public class CheckersRLTrainerApp {
         String replayHistoryFilename = "/Users/logan/game-players/replay_history.ser";
         String nnFilename = "/Users/logan/game-players/final_nn.ser";
 
-        boolean loadReplayHistory = true;
-        List<TrainingExample> replayHistory = null;
-        if (loadReplayHistory) {
-            replayHistory = loadReplayHistory(replayHistoryFilename);
-        }
+        boolean doTraining = true;
+        int trainingMinutes = 5;
+
         var nn = loadNN(nnFilename);
 
-        CheckersRLTrainer trainer = new CheckersRLTrainer(new Random(12345), (CheckersValueNN checkpointNN) ->  {
-            try {
-                serializeNN(checkpointNN, nnFilename);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+        if (doTraining) {
+            boolean loadReplayHistory = true;
+            List<TrainingExample> replayHistory = null;
+            if (loadReplayHistory) {
+                replayHistory = loadReplayHistory(replayHistoryFilename);
             }
-        });
-        System.out.println("Training");
-        int trainingMinutes = 1;
-        TrainingResult trainingResult = trainer.train(trainingMinutes * 60 * 1000, nn, replayHistory);
-        nn = trainingResult.trainingNN;
-        replayHistory = trainingResult.replayHistory;
-        System.out.println("Finished training");
 
-        serializeNN(nn, nnFilename);
-        System.out.println("Saved NN to " + nnFilename);
+            CheckersRLTrainer trainer = new CheckersRLTrainer(new Random(12345),
+            (CheckersValueNN checkpointNN) ->  {
+                try {
+                    serializeNN(checkpointNN, nnFilename);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            System.out.println("Training");
+            TrainingResult trainingResult = trainer.train(trainingMinutes * 60 * 1000, nn, replayHistory);
+            nn = trainingResult.trainingNN;
+            replayHistory = trainingResult.replayHistory;
+            System.out.println("Finished training");
 
-        if (loadReplayHistory && !replayHistory.isEmpty()) {
-            serializeReplayHistory(replayHistory, replayHistoryFilename);
-            System.out.println(String.format("Saved replay history (%d) to ", replayHistory.size()) + replayHistoryFilename);
+            serializeNN(nn, nnFilename);
+            System.out.println("Saved NN to " + nnFilename);
+
+            if (loadReplayHistory && !replayHistory.isEmpty()) {
+                serializeReplayHistory(replayHistory, replayHistoryFilename);
+                System.out.println(String.format("Saved replay history (%d) to ", replayHistory.size()) + replayHistoryFilename);
+            }
         }
 
         // TODO
-        // write my own sum tree for prioritized sampling
-        // errors are messed up because of tanh + softmax?
-        // replay history is probably way too short
+        // choose moves deterministically after 30 moves into the game?
+        // anneal down the move exploration? anneal up the IS bias correction?
+        // add evaluations at specific game states
+        // error gradients are messed up because of tanh + softmax?
+        // replay history is maybe too short
 
         System.out.println("Evaluating...");
         final double EVALUATOR_MCTS_PRIOR_WEIGHT = 20;
-        CheckersPlayerEvaluator evaluator = new CheckersPlayerEvaluator(EVALUATOR_MCTS_PRIOR_WEIGHT, 128, 4, true, false);
-//        EvaluationResult evalVsRandom = evaluator.evaluate(
-//                new NNCheckersPlayer(nn),
-//                new RandomCheckersPlayer(new Random(297350)),
-//                10,
-//                new Random(432));
-//        System.out.println(String.format("Evaluation vs RandomPlayer: %s", evalVsRandom.toString()));
-
+        final int opponentMCTSIterations = 256;
+        CheckersPlayerEvaluator evaluator = new CheckersPlayerEvaluator(
+                EVALUATOR_MCTS_PRIOR_WEIGHT, 128, opponentMCTSIterations, 4, true, false);
         EvaluationResult evalVsHeuristic = evaluator.evaluate(
                 new NNCheckersPlayer(nn),
                 new PieceCountCheckersPlayer(),
-                100,
+                400,
                 new Random(432));
-        System.out.println(String.format("Evaluation vs HeuristicPlayer: %s", evalVsHeuristic.toString()));
+        System.out.println(String.format(
+                "Evaluation vs HeuristicPlayer(%d): %s",
+                opponentMCTSIterations,
+                evalVsHeuristic.toString()));
 
         // TODO evaluate starting at some pre-determined game states, like end states
 //        --------
@@ -109,6 +115,16 @@ public class CheckersRLTrainerApp {
 //        |        |
 //        |   B    |
 //        |        |
+//         --------
+//        --------
+//        |     W  |
+//        |B       |
+//        |   W    |
+//        |  w     |
+//        |       w|
+//        |        |
+//        |       w|
+//        |      w |
 //         --------
     }
 

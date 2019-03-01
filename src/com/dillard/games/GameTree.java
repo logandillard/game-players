@@ -1,23 +1,23 @@
 package com.dillard.games;
 
-public class GameTree {
-	GameNode head;
-	
-	public GameTree(GameNode head) {
+public class GameTree<M extends Move, G extends Game<M, G>> {
+	GameNode<M, G> head;
+
+	public GameTree(GameNode<M, G> head) {
 		this.head = head;
 	}
-	
-	public GameNode addChild(GameNode parent, Game childGame) {
-		GameNode child = new GameNode(childGame);
+
+	public GameNode<M, G> addChild(GameNode<M, G> parent, G childGame) {
+		GameNode<M, G> child = new GameNode<M, G>(childGame);
 		parent.getChildren().add(child);
 		return child;
 	}
 
-	public GameNode getHead() {
+	public GameNode<M, G> getHead() {
 		return head;
 	}
 
-	public void setHead(GameNode head) {
+	public void setHead(GameNode<M, G> head) {
 		this.head = head;
 	}
 }

@@ -4,9 +4,8 @@ import java.util.List;
 
 import com.dillard.games.Game;
 import com.dillard.games.InvalidMoveException;
-import com.dillard.games.Move;
 
-public class Mancala implements Game, Cloneable {
+public class Mancala implements Game<MancalaMove, Mancala>, Cloneable {
 	static final int STORE_INDEX = 6;
 	public static final int NUM_TOTAL_MOVES = 6;
 	static final int NUM_PITS_PER_ROW = 6;
@@ -114,8 +113,8 @@ public class Mancala implements Game, Cloneable {
 		return numNonemptyPits(isPlayer1Turn);
 	}
 
-	public List<Move> getMoves() {
-		List<Move> moves = new ArrayList<Move>();
+	public List<MancalaMove> getMoves() {
+		List<MancalaMove> moves = new ArrayList<>();
 
 		if(isPlayer1Turn) {
 			for(int i=0; i<STORE_INDEX; i++) {
@@ -133,10 +132,10 @@ public class Mancala implements Game, Cloneable {
 
 	// Accepts integers between 0 and 11, inclusive.
 	// A move for player 1 should be 0-5, for player2 should be 6-11
-	public void move(Move o) throws InvalidMoveException {
+	public void move(MancalaMove o) throws InvalidMoveException {
 		// Error checking
 		if(!(o instanceof MancalaMove)) throw new InvalidMoveException();
-		MancalaMove move = (MancalaMove) o;
+		MancalaMove move = o;
 		if(move.m < 0 || move.m >= 2*STORE_INDEX) throw new InvalidMoveException();
 		if(this.isTerminated()) throw new InvalidMoveException(
 				"Game is terminated! No more moves allowed");
@@ -253,7 +252,7 @@ public class Mancala implements Game, Cloneable {
 	}
 
 	@Override
-    public Game clone() {
+    public Mancala clone() {
 		return new Mancala(this);
 	}
 
@@ -262,7 +261,7 @@ public class Mancala implements Game, Cloneable {
 		else return north[STORE_INDEX];
 	}
 
-	public boolean isSuccessor(Game laterGame) {
+	public boolean isSuccessor(Mancala laterGame) {
 		throw new UnsupportedOperationException();
 	}
 

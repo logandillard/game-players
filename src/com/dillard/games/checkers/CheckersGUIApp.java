@@ -9,7 +9,7 @@ public class CheckersGUIApp {
 
 		CheckersGUI ui = new CheckersGUI(model,
 				null,
-				new ABPruningPlayer<CheckersGame>(10));
+				new ABPruningPlayer<CheckersMove, CheckersGame>(10));
 		ui.run();
 	}
 }

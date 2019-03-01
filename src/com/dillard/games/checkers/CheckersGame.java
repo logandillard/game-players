@@ -5,12 +5,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Observable;
 
+import com.dillard.games.Game;
 import com.dillard.games.InvalidMoveException;
 import com.dillard.games.checkers.MCTS.MCTSGame;
 
 // Encapsulates all game logic
 @SuppressWarnings("deprecation")
-public class CheckersGame extends Observable implements MCTSGame<CheckersMove, CheckersGame> {
+public class CheckersGame extends Observable implements
+Game<CheckersMove, CheckersGame>, MCTSGame<CheckersMove, CheckersGame> {
 	private static final int NUM_MOVES_NO_JUMPS_FOR_DRAW = 100;
 	private static final boolean FORCED_JUMPS = true;
 
@@ -51,7 +53,6 @@ public class CheckersGame extends Observable implements MCTSGame<CheckersMove, C
 		}
 
 		// check if move is an available move
-//		availableMoves = null; // TODO remove
 		if (availableMoves == null) {
 			getMoves();
 		}
@@ -269,6 +270,14 @@ public class CheckersGame extends Observable implements MCTSGame<CheckersMove, C
 			return board.getNumBlackPieces() - board.getNumWhitePieces() +
 				(0.5 * (board.getNumBlackKings() - board.getNumWhiteKings()) );
 		}
+	}
+
+	public double evaluate(boolean player1) {
+	    return evaluatePieceCount(player1);
+	}
+
+	public int getMinPlayerPieceCount() {
+	    return Math.min(board.getNumWhitePieces(), board.getNumBlackPieces());
 	}
 
 	public double getFinalScore(boolean player1) {

@@ -13,6 +13,7 @@ import javax.swing.JTextArea;
 
 import com.dillard.games.GamePlayer;
 import com.dillard.games.checkers.CheckersGame;
+import com.dillard.games.checkers.CheckersMove;
 
 public class CheckersGUI extends JFrame {
     private static final long serialVersionUID = 1L;
@@ -20,13 +21,13 @@ public class CheckersGUI extends JFrame {
 	private CheckerBoardUI board;
 //	private JFrame frame;
 
-	public CheckersGUI (CheckersGame checkers, GamePlayer<CheckersGame> player1, GamePlayer<CheckersGame> player2) {
+	public CheckersGUI (CheckersGame checkers, GamePlayer<CheckersMove, CheckersGame> player1, GamePlayer<CheckersMove, CheckersGame> player2) {
 		this.checkers = checkers;
 
 		init(player1, player2);
 	}
 
-	private void init(GamePlayer<CheckersGame> player1, GamePlayer<CheckersGame> player2) {
+	private void init(GamePlayer<CheckersMove, CheckersGame> player1, GamePlayer<CheckersMove, CheckersGame> player2) {
 		this.setTitle("CheckerBoard");
 		this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 

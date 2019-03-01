@@ -1,6 +1,9 @@
 package com.dillard.games.checkers;
 
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import com.dillard.games.checkers.MCTS.MCTSPlayer;
 import com.dillard.games.checkers.MCTS.MCTSResult;
@@ -8,6 +11,7 @@ import com.dillard.games.checkers.MCTS.MCTSResult;
 public class CheckersPlayerEvaluator {
     private double priorWeight;
     private int mctsIterations;
+    private int opponentMCTSIterations;
     private boolean printGameSummaries = false;
     private boolean printMoves = false;
     private int nThreads = 4;
@@ -17,9 +21,12 @@ public class CheckersPlayerEvaluator {
         this.mctsIterations = mctsIterations;
     }
 
-    public CheckersPlayerEvaluator(double priorWeight, int mctsIterations, int nThreads, boolean printGameSummaries, boolean printMoves) {
+    public CheckersPlayerEvaluator(
+            double priorWeight, int mctsIterations, int opponentMCTSIterations,
+            int nThreads, boolean printGameSummaries, boolean printMoves) {
         this.priorWeight = priorWeight;
         this.mctsIterations = mctsIterations;
+        this.opponentMCTSIterations = opponentMCTSIterations;
         this.printGameSummaries = printGameSummaries;
         this.printMoves = printMoves;
         this.nThreads = nThreads;
@@ -31,24 +38,24 @@ public class CheckersPlayerEvaluator {
             int numGames, Random random) {
         EvaluationResult result = new EvaluationResult();
 
-//        ExecutorService es = Executors.newFixedThreadPool(nThreads);
-//        for (int i=0; i<numGames; i++) {
-//            es.submit(() -> {
-//                double score = playOneGameEvaluation(player, opponent, random);
-//                result.addResult(score);
-//            });
-//        }
-//        es.shutdown();
-//        try {
-//            es.awaitTermination(10, TimeUnit.MINUTES);
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
-//        }
-
+        ExecutorService es = Executors.newFixedThreadPool(nThreads);
         for (int i=0; i<numGames; i++) {
-            double score = playOneGameEvaluation(player, opponent, random);
-            result.addResult(score);
+            es.submit(() -> {
+                double score = playOneGameEvaluation(player, opponent, random);
+                result.addResult(score);
+            });
         }
+        es.shutdown();
+        try {
+            es.awaitTermination(10, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+//        for (int i=0; i<numGames; i++) {
+//            double score = playOneGameEvaluation(player, opponent, random);
+//            result.addResult(score);
+//        }
 
         return result;
     }
@@ -70,7 +77,7 @@ public class CheckersPlayerEvaluator {
             }
             if (game.isPlayer1Turn()) {
                 // MCTS search
-                MCTSResult<CheckersMove> result = mcts.search(game, mctsIterations);
+                MCTSResult<CheckersMove> result = mcts.search(game, mctsIterations, false);
                 // take move
                 game.move(result.chosenMove);
                 // update gametree in MCTS
@@ -79,7 +86,7 @@ public class CheckersPlayerEvaluator {
                 opponentMCTS.advanceToMove(result.chosenMove);
             } else {
                 // MCTS search
-                MCTSResult<CheckersMove> result = opponentMCTS.search(game, mctsIterations);
+                MCTSResult<CheckersMove> result = opponentMCTS.search(game, opponentMCTSIterations, false);
                 // take move
                 game.move(result.chosenMove);
                 // update gametree in MCTS
@@ -128,7 +135,7 @@ public class CheckersPlayerEvaluator {
 
         @Override
         public String toString() {
-            return String.format("score: %.2f wins: %d losses: %d draws %d", getScore(), numWins, numLosses, numDraws);
+            return String.format("score: %.2f wins: %d losses: %d draws: %d", getScore(), numWins, numLosses, numDraws);
         }
     }
 }

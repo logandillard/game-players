@@ -2,8 +2,8 @@ package com.dillard.games;
 
 import java.io.IOException;
 
-public interface NNPlayer<G extends Game> extends GamePlayer<G> {
-	
+public interface NNPlayer<M extends Move, G extends Game<M, G>> extends GamePlayer<M, G> {
+
 	double[] activateNN(G game, boolean NNisPlayer1) ;
 
 	void loadModel() throws IOException, ClassNotFoundException ;

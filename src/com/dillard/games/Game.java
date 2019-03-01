@@ -2,16 +2,16 @@ package com.dillard.games;
 
 import java.util.List;
 
-public interface Game extends Cloneable {
+public interface Game<M extends Move, G extends Game<M, G>> extends Cloneable {
 
 	/** Take the specified move */
-	void move(Move m) throws InvalidMoveException;
+	void move(M m) throws InvalidMoveException;
 
 	/** Return the number of possible moves for the current turn */
-	int numMoves();
+//	int numMoves();
 
 	/** Get all possible moves for the current turn */
-	List<Move> getMoves();
+	List<M> getMoves();
 
 	/** Has the game completed? */
 	boolean isTerminated();
@@ -28,5 +28,5 @@ public interface Game extends Cloneable {
 	boolean equals(Object o);
 
 	/** Return a clone of this object */
-	Game clone();	
+	G clone();
 }
