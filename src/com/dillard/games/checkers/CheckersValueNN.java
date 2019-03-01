@@ -165,6 +165,8 @@ public class CheckersValueNN implements Serializable {
     private double[] errorGradients(double[] outputs, double[] correctOutputs, double importanceWeight) {
         double[] errorGradients = new double[outputs.length];
         for (int i=0; i<outputs.length; i++) {
+            // TODO this is wrong because the outputs are being normalized
+            // need to use the quotient rule for proper derivative
             errorGradients[i] = (correctOutputs[i] - outputs[i]) * importanceWeight;
         }
         return errorGradients;
@@ -179,7 +181,9 @@ public class CheckersValueNN implements Serializable {
         correctOutputs[0] = te.finalGameValue; // location 0 is the state value
         for (Scored<CheckersMove> scoredMove : te.scoredMoves) {
             int idx = moveIndex(scoredMove.value);
-            correctOutputs[idx + 1] = scoredMove.score;
+            // scale scoredMove.score (a probability) to (-1,1)
+            double correctOutput = (scoredMove.score * 2.0) - 1.0;
+            correctOutputs[idx + 1] = correctOutput;
         }
         return correctOutputs;
     }
