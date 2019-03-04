@@ -71,6 +71,12 @@ public class LayeredNN implements Serializable, Cloneable {
         }
     }
 
+    public void setLearningRate(double lr) {
+        for (int layer = layers.length - 1; layer >= 0; layer--) {
+            layers[layer].setLearningRate(lr);
+        }
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

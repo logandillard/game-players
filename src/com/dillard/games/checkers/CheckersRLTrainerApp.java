@@ -11,6 +11,7 @@ import java.util.Random;
 
 import com.dillard.games.checkers.CheckersPlayerEvaluator.EvaluationResult;
 import com.dillard.games.checkers.CheckersRLTrainer.TrainingResult;
+import com.dillard.nn.LayeredNN;
 
 public class CheckersRLTrainerApp {
 
@@ -19,35 +20,44 @@ public class CheckersRLTrainerApp {
         String nnFilename = "/Users/logan/game-players/final_nn.ser";
 
         boolean doTraining = true;
-        int trainingMinutes = 5;
+        boolean loadReplayHistory = true;
+        boolean saveNN = true;
+        int trainingMinutes = 15;
 
-        var nn = loadNN(nnFilename);
+        var nn = new CheckersValueNN(loadNN(nnFilename));
+//        var nn = CheckersValueNN.build();
 
         if (doTraining) {
-            boolean loadReplayHistory = true;
             List<TrainingExample> replayHistory = null;
             if (loadReplayHistory) {
                 replayHistory = loadReplayHistory(replayHistoryFilename);
             }
 
+            System.out.println("Training");
             CheckersRLTrainer trainer = new CheckersRLTrainer(new Random(12345),
             (CheckersValueNN checkpointNN) ->  {
-                try {
-                    serializeNN(checkpointNN, nnFilename);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+                if (saveNN) {
+                    try {
+                        serializeNN(checkpointNN.getNN(), nnFilename);
+                        System.out.println("Saved NN");
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             });
-            System.out.println("Training");
+//            trainer.setExplorationFactor(0.3);
             TrainingResult trainingResult = trainer.train(trainingMinutes * 60 * 1000, nn, replayHistory);
             nn = trainingResult.trainingNN;
             replayHistory = trainingResult.replayHistory;
             System.out.println("Finished training");
 
-            serializeNN(nn, nnFilename);
-            System.out.println("Saved NN to " + nnFilename);
+            if (saveNN) {
+                serializeNN(nn.getNN(), nnFilename);
+                System.out.println("Saved NN to " + nnFilename);
+            }
 
             if (loadReplayHistory && !replayHistory.isEmpty()) {
+                System.out.println("Saving replay history (do not cancel!)");
                 serializeReplayHistory(replayHistory, replayHistoryFilename);
                 System.out.println(String.format("Saved replay history (%d) to ", replayHistory.size()) + replayHistoryFilename);
             }
@@ -57,7 +67,6 @@ public class CheckersRLTrainerApp {
         // choose moves deterministically after 30 moves into the game?
         // anneal down the move exploration? anneal up the IS bias correction?
         // add evaluations at specific game states
-        // error gradients are messed up because of tanh + softmax?
         // replay history is maybe too short
 
         System.out.println("Evaluating...");
@@ -147,16 +156,16 @@ public class CheckersRLTrainerApp {
         }
     }
 
-    private static void serializeNN(CheckersValueNN nn, String filename) throws FileNotFoundException, IOException {
+    private static void serializeNN(LayeredNN nn, String filename) throws FileNotFoundException, IOException {
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filename))) {
             oos.writeObject(nn);
         }
     }
 
-    private static CheckersValueNN loadNN(String filename) throws FileNotFoundException, IOException, ClassNotFoundException {
+    private static LayeredNN loadNN(String filename) throws FileNotFoundException, IOException, ClassNotFoundException {
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filename))) {
             System.out.println("Loading NN");
-            return (CheckersValueNN) ois.readObject();
+            return (LayeredNN) ois.readObject();
         } catch (FileNotFoundException fnf) {
             return null;
         }

@@ -7,13 +7,19 @@ public class ActivationFunctionTanH implements ActivationFunction, Serializable 
 
     @Override
     public final double derivative(double value) {
-        double modifiedOutput = (value + 1.0) / 2.0; // transform to sigmoid-equivalent
-        double activationDerivative = 2.0 * modifiedOutput * (1 - modifiedOutput); // * 2 for tanh
-        return activationDerivative;
+        return 1.0 - value*value;
+         // Alternatively:
+//        double modifiedOutput = (value + 1.0) * 0.5; // transform to sigmoid-equivalent
+//        double activationDerivative = 2.0 * modifiedOutput * (1 - modifiedOutput); // * 2 for tanh
+//        return activationDerivative;
     }
 
     @Override
     public final double activate(double x) {
-        return (2.0 / (1.0 + Math.pow(Math.E, -x))) - 1.0;
+        // Alternatively:
+        // double ex = Math.exp(x);
+        // double enx = Math.exp(-x);
+        // return (ex - enx) / (ex + enx);
+        return (2.0 / (1.0 + Math.exp(-x))) - 1.0;
     }
 }

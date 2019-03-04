@@ -13,4 +13,6 @@ public interface NNLayer extends Cloneable {
     void applyAccumulatedGradients();
 
     NNLayer cloneWeights();
+
+    void setLearningRate(double lr);
 }

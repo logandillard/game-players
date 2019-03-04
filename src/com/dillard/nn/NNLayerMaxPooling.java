@@ -81,4 +81,8 @@ public class NNLayerMaxPooling implements NNLayer {
     public void applyAccumulatedGradients() {
     }
 
+
+    @Override
+    public void setLearningRate(double lr) {
+    }
 }

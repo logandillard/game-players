@@ -15,8 +15,8 @@ public final class ADAMOptimizerMatrix implements Serializable {
     private double beta2t = beta2;
     private double beta1tMult = 1.0 / (1.0 - beta1t); // precomputed for speed
     private double beta2tMult = 1.0 / (1.0 - beta2t); // precomputed for speed
-    private final double learningRate;
-    private final double lrTimesL2; // precomputed for speed
+    private double learningRate;
+    private double lrTimesL2; // precomputed for speed
 
     public ADAMOptimizerMatrix(int weightRows, int weightCols,
             double learningRate, double l2Regularization) {
@@ -72,5 +72,11 @@ public final class ADAMOptimizerMatrix implements Serializable {
 
     public double getLrTimesL2() {
         return lrTimesL2;
+    }
+
+    public void setLearningRate(double lr) {
+        double l2 = this.lrTimesL2 / this.learningRate;
+        this.learningRate = lr;
+        this.lrTimesL2 = lr * l2;
     }
 }

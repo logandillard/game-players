@@ -62,13 +62,11 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
     }
 
     private double search(Node<M, G> node) {
-
         // expand node
         if (node.children.isEmpty()) {
-            expandNode(node);
-
+            double stateValue = expandNode(node);
             // have hit what was a leaf, no need to continue
-            return node.observedValueSum / node.visitCount;
+            return stateValue;
         }
 
         // search recursively
@@ -96,34 +94,65 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
         double maxScore = -Double.MAX_VALUE;
         var children = new ArrayList<>(root.children.entrySet());
         Collections.shuffle(children, random);
+
+        int childVisitCountSum = 0;
+        for (var entry : children) {
+            Node<M, G> childNode = entry.getValue();
+            childVisitCountSum += childNode.visitCount;
+        }
+        double sqrtChildVisitCountSum = Math.sqrt(1 + childVisitCountSum);
+
         for (var entry : children) {
             Node<M, G> childNode = entry.getValue();
             double opponentMultiplier = childNode.game.isPlayer1Turn() == root.game.isPlayer1Turn() ? 1.0 : -1.0;
-            double observedValueScore = opponentMultiplier * (childNode.observedValueSum / (1.0 + childNode.visitCount));
-            double priorScore = priorWeight * (childNode.priorProb / (1.0 + childNode.visitCount));
+            double observedValueScore = childNode.visitCount == 0 ? 0.0 :
+                    opponentMultiplier * (childNode.observedValueSum / childNode.visitCount);
+            double priorScore = priorWeight * childNode.priorProb * sqrtChildVisitCountSum / (1.0 + childNode.visitCount);
             double score = observedValueScore + priorScore;
             if (score > maxScore) {
                 maxScore = score;
                 maxScoreMove = entry.getKey();
             }
         }
+//        For debugging
+        if (maxScoreMove == null) {
+            for (var entry : children) {
+                Node<M, G> childNode = entry.getValue();
+                double opponentMultiplier = childNode.game.isPlayer1Turn() == root.game.isPlayer1Turn() ? 1.0 : -1.0;
+                double observedValueScore = childNode.visitCount == 0 ? 0.0 :
+                    opponentMultiplier * (childNode.observedValueSum / childNode.visitCount);
+                double priorScore = priorWeight * childNode.priorProb * sqrtChildVisitCountSum / (1.0 + childNode.visitCount);
+                double score = observedValueScore + priorScore;
+                System.out.println(String.format(
+                        "observedValueScore: %f observedValueSum %f priorScore %f priorProb %f visitCount %d",
+                        observedValueScore, childNode.observedValueSum, priorScore, childNode.priorProb, childNode.visitCount));
+                if (score > maxScore) {
+                    maxScore = score;
+                    maxScoreMove = entry.getKey();
+                }
+            }
+            throw new RuntimeException("No max score move!");
+        }
         return maxScoreMove;
     }
 
-    private void expandNode(Node<M, G> node) {
+    private double expandNode(Node<M, G> node) {
         if (node.game.isTerminated()) {
+            // TODO supposed to set visit count to 0, observedValueSum to 0, and back up stateValue
             node.observedValueSum = node.game.getFinalScore(node.game.isPlayer1Turn());
             node.visitCount = 1;
+            return node.observedValueSum;
         } else {
             var stateEvaluation = player.evaluateState(node.game);
-            node.observedValueSum = stateEvaluation.stateValue;
-            node.visitCount = 1;
+            node.observedValueSum = 0;
+            node.visitCount = 0;
             for (int i=0; i<stateEvaluation.moves.size(); i++) {
                 var move = stateEvaluation.moves.get(i);
                 var updatedGame = node.game.clone();
                 updatedGame.move(move);
                 node.children.put(move, new Node<M, G>(updatedGame, stateEvaluation.moveProbs.get(i), node));
             }
+            return stateEvaluation.stateValue;
         }
     }
 
@@ -154,12 +183,13 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            sb.append(String.format("%.3f (%d) %s\n%s\n",
+            sb.append(String.format("%.3f (%d) %s %f\n%s\n",
                     observedValueSum / (1.0 + visitCount), visitCount,
-                    game.isPlayer1Turn() ? "WHITE" : "BLACK", game.toString()));
+                    game.isPlayer1Turn() ? "WHITE" : "BLACK", priorProb, game.toString()));
             for (Node<M, G> child : children.values()) {
                 sb.append(String.format("%.3f (%d) %s\n",
-                    child.observedValueSum / (1.0 + child.visitCount), child.visitCount,
+                    child.visitCount == 0 ? 0.0 : child.observedValueSum / child.visitCount,
+                    child.visitCount,
                     child.game.isPlayer1Turn() ? "WHITE" : "BLACK"));
             }
             return sb.toString();

@@ -187,4 +187,9 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
     public String toString() {
         return NNDiagnostics.weightsToString(weights);
     }
+
+    @Override
+    public void setLearningRate(double lr) {
+        optimizer.setLearningRate(lr);
+    }
 }

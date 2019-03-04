@@ -13,7 +13,7 @@ import com.dillard.games.checkers.MCTS.MCTSResult;
 public class CheckersRLTrainer {
     private static final int replayHistorySize = 128 * 1024; // TODO AlphaGoZero uses 500k
     private static final long NN_CHECKPOINT_INTERVAL_MS = 1000 * 60 * 5; // 5 minutes
-    private double explorationFactor = 0.5; // TODO start at 1.0, anneal down to 0
+    private double explorationFactor = 1.0; // TODO start at 1.0, anneal down to 0
     private Random random;
     private CheckersValueNN trainingNN;
     private List<TrainingExample> replayHistory = null;
@@ -22,6 +22,9 @@ public class CheckersRLTrainer {
     private long quittingTime = 0;
     private long lastProgressTimestamp = 0;
     private AtomicInteger gamesPlayedSinceLastProgress = new AtomicInteger(0);
+    private int totalGamesPlayed = 0;
+    private int totalPositionsCreated = 0;
+    private int miniBatchesTrained = 0;
     private Consumer<CheckersValueNN> nnCheckpointer;
 
     public CheckersRLTrainer(Random random, Consumer<CheckersValueNN> nnCheckpointer) {
@@ -83,6 +86,9 @@ public class CheckersRLTrainer {
             throw new RuntimeException(ie);
         }
 
+        System.out.println(String.format("total games %d. training examples created %d",
+                totalGamesPlayed, totalPositionsCreated));
+
         return new TrainingResult(trainingNN, replayHistory);
     }
 
@@ -117,14 +123,18 @@ public class CheckersRLTrainer {
                     prioritizedSampler.addAll(result.newTrainingExamples);
                 }
 
+                totalGamesPlayed++;
+                totalPositionsCreated += result.newTrainingExamples.size();
                 // Report progress (global)
                 if (System.currentTimeMillis() - lastProgressTimestamp > 30000) {
                     long time = System.currentTimeMillis();
                     double gamesPerSecond = gamesPlayedSinceLastProgress.get() * 1000 / (double)(time - lastProgressTimestamp);
                     lastProgressTimestamp = time;
                     gamesPlayedSinceLastProgress.set(0);
-                    System.out.println(String.format("%.2f games/sec. minutes remaining %.2f",
-                            gamesPerSecond, (quittingTime - time) / 60000.0));
+                    System.out.println(String.format("%.2f games/sec. total %d (%d). trained %d. minutes remaining %.2f",
+                            gamesPerSecond, totalGamesPlayed, totalPositionsCreated,
+                            miniBatchesTrained * miniBatchSize,
+                            (quittingTime - time) / 60000.0));
                 }
             }
 
@@ -136,94 +146,6 @@ public class CheckersRLTrainer {
                 gamesPlayedSinceCheckpointNN = 0;
             }
         }
-    }
-
-    private void trainFromExamples() {
-        // Wait until we have some training examples
-        while (continueTraining && prioritizedSampler.getNodeCount() == 0) {
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-
-        long lastCheckpointTime = System.currentTimeMillis();
-        int miniBatchesTrained = 0;
-        while (continueTraining) {
-            // train
-            trainMiniBatch(trainingNN, prioritizedSampler);
-            miniBatchesTrained++;
-
-            // Checkpoint the NN (save to disk) occasionally
-            if (miniBatchesTrained % 100 == 0) {
-                if (System.currentTimeMillis() - lastCheckpointTime > NN_CHECKPOINT_INTERVAL_MS) {
-                    lastCheckpointTime = System.currentTimeMillis();
-                    if (nnCheckpointer != null) {
-                        try {
-                            nnCheckpointer.accept(trainingNN);
-                            System.out.println("Saved NN");
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }
-            }
-        }
-        System.out.println(String.format("Trained %d mini batches", miniBatchesTrained));
-    }
-
-//    final int maxOver = 10;
-    final int miniBatchSize = 32;
-    final double MAX_ERROR_VALUE = 1000;
-    final int NUM_MCTS_ITERS = 100;
-    final double MCTS_PRIOR_WEIGHT = 20.0; // higher leads to more exploration in MCTS
-    private final double priorityExponent = 0.5;
-    private final double importanceSamplingBiasExponent = 0.5; // anneal from 0.4 to 1.0
-
-    private void trainMiniBatch(CheckersValueNN nn, PrioritizedSampler prioritizedSampler) {
-        List<TrainingExample> miniBatch = new ArrayList<>();
-        double totalPrioritySum = prioritizedSampler.getPrioritySum();
-        int totalCount = prioritizedSampler.getNodeCount();
-        double maxImportanceWeight = 0;
-        for (int i=0; i<miniBatchSize; i++) {
-            TrainingExample te = prioritizedSampler.sampleAndRemove();
-            te.importanceWeight = Math.pow(totalPrioritySum / (te.priority * totalCount), importanceSamplingBiasExponent);
-            miniBatch.add(te);
-            if (te.importanceWeight > maxImportanceWeight) {
-                maxImportanceWeight =  te.importanceWeight;
-            }
-        }
-        // Scale weights by 1/maxImportanceWeight so that they only scale down for stability
-        for (var te : miniBatch) {
-            te.importanceWeight = te.importanceWeight / maxImportanceWeight;
-        }
-
-
-        // Poor man's prioritization
-//        List<TrainingExample> miniBatch = new ArrayList<>();
-//        for (int i=0; i<miniBatchSize; i++) {
-//            int idx = random.nextInt(replayHistory.size());
-//            var maxScoreExample = replayHistory.get(idx);
-//            double maxScore = replayHistory.get(idx).priority;
-//
-//            for (int j=0; j<maxOver; j++) {
-//                var te = replayHistory.get((idx + j) % replayHistory.size());
-//                if (te.priority > maxScore) {
-//                    maxScore = te.priority;
-//                    maxScoreExample = te;
-//                }
-//            }
-//            miniBatch.add(maxScoreExample);
-//        }
-
-        nn.trainMiniBatch(miniBatch);
-
-        // re-score examples in miniBatch
-        for (var te : miniBatch) {
-            te.priority = Math.pow(Math.abs(nn.error(te)), priorityExponent);
-        }
-        prioritizedSampler.addAll(miniBatch);
     }
 
     private GameResult playOneGameForTrainingData(CheckersValueNN nn) {
@@ -250,9 +172,9 @@ public class CheckersRLTrainer {
             // MCTS search
             // TODO is this a good idea?
             // if either player has < N pieces left, stop exploration
-            if (game.getMinPlayerPieceCount() < 2) {
-                mcts.setExplorationFactor(0);
-            }
+//            if (game.getMinPlayerPieceCount() < 2) {
+//                mcts.setExplorationFactor(0);
+//            }
             MCTSResult<CheckersMove> result = mcts.search(game, NUM_MCTS_ITERS, true);
 
             // Store training example
@@ -294,5 +216,108 @@ public class CheckersRLTrainer {
             this.finalScore = finalScore;
             this.startingPlayer1Turn = startingPlayer1Turn;
         }
+    }
+
+    private void trainFromExamples() {
+        // Wait until we have some training examples
+        while (continueTraining && prioritizedSampler.getNodeCount() == 0) {
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        long lastCheckpointTime = System.currentTimeMillis();
+        while (continueTraining) {
+            // train
+            trainMiniBatch(trainingNN, prioritizedSampler);
+            miniBatchesTrained++;
+
+            // Checkpoint the NN (save to disk) occasionally
+            if (miniBatchesTrained % 100 == 0) {
+                if (System.currentTimeMillis() - lastCheckpointTime > NN_CHECKPOINT_INTERVAL_MS) {
+                    lastCheckpointTime = System.currentTimeMillis();
+                    if (nnCheckpointer != null) {
+                        try {
+                            nnCheckpointer.accept(trainingNN);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }
+        }
+        System.out.println(String.format("Trained %d mini batches (%d positions)",
+                miniBatchesTrained, miniBatchesTrained * miniBatchSize));
+    }
+
+//    final int maxOver = 10;
+    final int miniBatchSize = 32;
+    final double MAX_ERROR_VALUE = 1000;
+    final int NUM_MCTS_ITERS = 100;
+    final double MCTS_PRIOR_WEIGHT = 20.0; // higher leads to more exploration in MCTS
+    private final double priorityExponent = 0.5;
+    private final double importanceSamplingBiasExponent = 0.5; // anneal from 0.4 to 1.0
+
+    private void trainMiniBatch(CheckersValueNN nn, PrioritizedSampler prioritizedSampler) {
+        List<TrainingExample> miniBatch = new ArrayList<>();
+        double totalPrioritySum = prioritizedSampler.getPrioritySum();
+        int totalCount = prioritizedSampler.getNodeCount();
+        if (totalCount == 0) {
+            // this at least won't work for the importance weight below, where we try to divide by this
+            throw new RuntimeException("Trying to sample from prioritized sampler with 0 nodes!");
+        }
+        double maxImportanceWeight = 0;
+        for (int i=0; i<miniBatchSize; i++) {
+            TrainingExample te = prioritizedSampler.sampleAndRemove();
+            te.importanceWeight = Math.pow(totalPrioritySum / (te.priority * totalCount), importanceSamplingBiasExponent);
+            if (Double.isNaN(te.importanceWeight)) {
+                throw new RuntimeException();
+            }
+            miniBatch.add(te);
+            if (te.importanceWeight > maxImportanceWeight) {
+                maxImportanceWeight =  te.importanceWeight;
+            }
+        }
+
+        if (maxImportanceWeight == 0.0) {
+            System.out.println(miniBatch); // TODO
+            throw new RuntimeException("Max importance weight is 0!");
+        }
+
+        // Scale weights by 1/maxImportanceWeight so that they only scale down for stability
+        for (var te : miniBatch) {
+            te.importanceWeight = te.importanceWeight / maxImportanceWeight;
+        }
+
+        // Poor man's prioritization
+//        List<TrainingExample> miniBatch = new ArrayList<>();
+//        for (int i=0; i<miniBatchSize; i++) {
+//            int idx = random.nextInt(replayHistory.size());
+//            var maxScoreExample = replayHistory.get(idx);
+//            double maxScore = replayHistory.get(idx).priority;
+//
+//            for (int j=0; j<maxOver; j++) {
+//                var te = replayHistory.get((idx + j) % replayHistory.size());
+//                if (te.priority > maxScore) {
+//                    maxScore = te.priority;
+//                    maxScoreExample = te;
+//                }
+//            }
+//            miniBatch.add(maxScoreExample);
+//        }
+
+        nn.trainMiniBatch(miniBatch);
+
+        // re-score examples in miniBatch
+        for (var te : miniBatch) {
+            te.priority = Math.pow(Math.abs(nn.error(te)), priorityExponent);
+        }
+        prioritizedSampler.addAll(miniBatch);
+    }
+
+    public void setExplorationFactor(double explorationFactor) {
+        this.explorationFactor = explorationFactor;
     }
 }

@@ -117,7 +117,7 @@ public class CheckersPlayerEvaluator {
         public int numDraws;
         public int numGames;
 
-        public void addResult(double score) {
+        public synchronized void addResult(double score) {
             numGames++;
             scoreSum += score;
             if (score == 0.0) {

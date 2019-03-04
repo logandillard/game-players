@@ -328,4 +328,10 @@ public class NNLayerConv2D implements NNLayer, Serializable {
     public int getNumFilters() {
         return numFilters;
     }
+
+
+    @Override
+    public void setLearningRate(double lr) {
+        optimizer.setLearningRate(lr);
+    }
 }
