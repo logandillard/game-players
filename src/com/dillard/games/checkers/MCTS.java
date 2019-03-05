@@ -32,13 +32,13 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
     public MCTSResult<M> search(G game, int numIterations, boolean useDirichletNoise) {
         if (root == null) {
             root = new Node<M, G>(game, 1.0, null);
+            expandNode(root);
         }
 
         // Adding Dirichlet noise to the prior probabilities in the root node s0,
         // specifically P(s, a) = (1 − ep)p + ep*η, where η ∼ Dir(0.03) and ep = 0.25.
         // This noise ensures that all moves may be tried, but the search may still overrule bad moves
         if (useDirichletNoise) {
-            expandNode(root);
             List<Node<M, G>> children = new ArrayList<>(root.children.values());
             double[] dirichletNoise = dirichletNoise(children.size());
             for (int i=0; i<children.size(); i++) {
