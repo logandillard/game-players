@@ -4,10 +4,11 @@ import java.util.Iterator;
 import java.util.List;
 
 public class ABPruningPlayer<M extends Move, G extends Game<M, G>> implements GamePlayer<M, G> {
-	GameTree<M, G> gameTree;
-	boolean isPlayer1;
+	private GameTree<M, G> gameTree;
+	private boolean isPlayer1;
 
-	int turnDepthLimit;
+	private int turnDepthLimit;
+	private int numLeafNodes = 0;
 
 	public ABPruningPlayer(int turnDepthLim) {
 		if (turnDepthLim < 1) {
@@ -18,8 +19,10 @@ public class ABPruningPlayer<M extends Move, G extends Game<M, G>> implements Ga
 		gameTree = null;
 	}
 
-	public M move(G theGame) throws Exception {
+	public M move(G theGame) {
+	    numLeafNodes = 0;
 
+	    // TODO should re-use game trees across calls
 		gameTree = new GameTree<M, G>(new GameNode<M, G>(theGame));
 		isPlayer1 = theGame.isPlayer1Turn();
 		GameNode<M, G> head = gameTree.getHead();
@@ -60,15 +63,17 @@ public class ABPruningPlayer<M extends Move, G extends Game<M, G>> implements Ga
 			i++;
 		}
 
+//		System.out.println(numLeafNodes);
+
 		// Pick one move at random from that list
 		int highScoreMoveIndex = (int) (Math.random() * highScoreMoveList.size());
 		return highScoreMoveList.get(highScoreMoveIndex);
-
 	}
 
-	private double maxValue(GameNode<M, G> gameNode, int turnDepth, double alpha, double beta) throws Exception {
+	private double maxValue(GameNode<M, G> gameNode, int turnDepth, double alpha, double beta) {
 		G theGame = gameNode.getGame();
-		if(cutoff(theGame, turnDepth)) {
+		if (cutoff(theGame, turnDepth)) {
+		    numLeafNodes++;
 			return evaluate(theGame);
 		}
 
@@ -116,7 +121,7 @@ public class ABPruningPlayer<M extends Move, G extends Game<M, G>> implements Ga
 		return highestFound;
 	}
 
-	private double minValue(GameNode<M, G> gameNode, int turnDepth, double alpha, double beta) throws Exception {
+	private double minValue(GameNode<M, G> gameNode, int turnDepth, double alpha, double beta) {
 		G theGame = gameNode.getGame();
 		if(cutoff(theGame, turnDepth)) {
 			return evaluate(theGame);
@@ -175,7 +180,7 @@ public class ABPruningPlayer<M extends Move, G extends Game<M, G>> implements Ga
 		return false;
 	}
 
-	protected double evaluate(G theGame) throws Exception {
+	protected double evaluate(G theGame) {
 		return theGame.evaluate(isPlayer1);
 	}
 	public boolean isPlayer1() {

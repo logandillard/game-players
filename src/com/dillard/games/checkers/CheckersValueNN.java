@@ -26,20 +26,13 @@ public class CheckersValueNN implements Serializable {
 
     public static CheckersValueNN build() {
         double learningRate = 0.0001, l2 = 0.0001;
-//        ActivationFunction activation = new ActivationFunctionTanH();
         WeightInitializer initializer = new WeightInitializerGaussianFixedVariance(1.0/NUM_INPUTS);
 
-//        LayeredNN nn = LayeredNN.buildFullyConnected(new int[] {NUM_INPUTS, 100, NUM_OUTPUTS},
-//                activation,
-//                initializer,
-//                learningRate,
-//                l2
-//                );
-
-        NNLayer[] layers = new NNLayer[2];
-        layers[0] = new NNLayerFullyConnected(NUM_INPUTS, 100, new ActivationFunctionReLU(), initializer, learningRate, l2);
-        layers[0] = new NNLayerFullyConnected(100, 100, new ActivationFunctionReLU(), initializer, learningRate, l2);
-        layers[1] = new NNLayerFullyConnected(100, NUM_OUTPUTS, new ActivationFunctionLinear(), initializer, learningRate, l2);
+        NNLayer[] layers = new NNLayer[] {
+            new NNLayerFullyConnected(NUM_INPUTS, 100, new ActivationFunctionReLU(), initializer, learningRate, l2),
+            new NNLayerFullyConnected(100, 100, new ActivationFunctionReLU(), initializer, learningRate, l2),
+            new NNLayerFullyConnected(100, NUM_OUTPUTS, new ActivationFunctionLinear(), initializer, learningRate, l2)
+        };
         LayeredNN nn =  new LayeredNN(layers);
         return new CheckersValueNN(nn);
     }
@@ -145,25 +138,10 @@ public class CheckersValueNN implements Serializable {
             // or smooth all scores by + 0.00001
             throw new RuntimeException("Exponentiated scores summed to zero - cannot softmax!");
         }
-        if (sum < 0.0001) {
-            @SuppressWarnings("unused")
-            String bp = ""; // TODO
-//            throw new RuntimeException("Exponentiated score sum has gotten very low!!");
-        }
         for (int i=0; i<scores.size(); i++) {
             scores.set(i, scores.get(i) / sum);
         }
     }
-
-//    private void normalizeTanHScoresToProbabilities(List<Double> scores) {
-//        double sum = 0;
-//        for (double d : scores) {
-//            sum += d + 1.000001;
-//        }
-//        for (int i=0; i<scores.size(); i++) {
-//            scores.set(i, (scores.get(i) + 1.000001) / sum);
-//        }
-//    }
 
     public double error(TrainingExample te) {
         double[] outputs = nn.activate(createNNInputs(te.state.getBoardPieces(), !te.isPlayer1));
@@ -227,11 +205,11 @@ public class CheckersValueNN implements Serializable {
                     int index = indexes.get(i);
                     double softmaxOutput = outputScores.get(i);
 
-                    if (outputs[index] < -100 && scoredMove.score < softmaxOutput) {
-                        // why you gotta keep pushing???? TODO
-                        @SuppressWarnings("unused")
-                        String bp = "";
-                    }
+//                    if (outputs[index] < -100 && scoredMove.score < softmaxOutput) {
+//                        // why you gotta keep pushing???? TODO
+//                        @SuppressWarnings("unused")
+//                        String bp = "";
+//                    }
 
                     errorGradients[index] = (scoredMove.score - softmaxOutput) * te.importanceWeight;
                 }

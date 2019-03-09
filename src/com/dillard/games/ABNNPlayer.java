@@ -25,7 +25,7 @@ public abstract class ABNNPlayer<M extends Move, G extends Game<M, G>> extends A
 	protected abstract void createModel() ;
 
 	@Override
-	protected abstract double evaluate(G theGame) throws Exception ;
+	protected abstract double evaluate(G theGame) ;
 
 	public void loadModel() throws IOException, ClassNotFoundException {
 		ObjectInputStream ois = new ObjectInputStream(new FileInputStream(modelFile));

@@ -18,6 +18,7 @@ public class CheckersRLTrainer {
     private CheckersValueNN trainingNN;
     private List<TrainingExample> replayHistory = null;
     private PrioritizedSampler prioritizedSampler;
+    private int numGameThreads = 3;
     private volatile boolean continueTraining = true;
     private long quittingTime = 0;
     private long lastProgressTimestamp = 0;
@@ -53,7 +54,6 @@ public class CheckersRLTrainer {
         quittingTime = System.currentTimeMillis() + durationMs;
 
         // Start our game threads
-        int numGameThreads = 3;
         List<Thread> gameThreads = new ArrayList<>();
         for (int i=0; i<numGameThreads; i++) {
             Thread t = new Thread(() -> {
@@ -254,59 +254,68 @@ public class CheckersRLTrainer {
 
 //    final int maxOver = 10;
     final int miniBatchSize = 32;
-    final double MAX_ERROR_VALUE = 1000;
+    final double MAX_ERROR_VALUE = 3;
     final int NUM_MCTS_ITERS = 100;
     final double MCTS_PRIOR_WEIGHT = 20.0; // higher leads to more exploration in MCTS
     private final double priorityExponent = 0.5;
     private final double importanceSamplingBiasExponent = 0.5; // anneal from 0.4 to 1.0
+    private final boolean doPrioritySampling = true;
 
     private void trainMiniBatch(CheckersValueNN nn, PrioritizedSampler prioritizedSampler) {
         List<TrainingExample> miniBatch = new ArrayList<>();
-        double totalPrioritySum = prioritizedSampler.getPrioritySum();
-        int totalCount = prioritizedSampler.getNodeCount();
-        if (totalCount == 0) {
-            // this at least won't work for the importance weight below, where we try to divide by this
-            throw new RuntimeException("Trying to sample from prioritized sampler with 0 nodes!");
-        }
-        double maxImportanceWeight = 0;
-        for (int i=0; i<miniBatchSize; i++) {
-            TrainingExample te = prioritizedSampler.sampleAndRemove();
-            te.importanceWeight = Math.pow(totalPrioritySum / (te.priority * totalCount), importanceSamplingBiasExponent);
-            if (Double.isNaN(te.importanceWeight)) {
-                throw new RuntimeException();
+
+        if (doPrioritySampling) {
+            double totalPrioritySum = prioritizedSampler.getPrioritySum();
+            int totalCount = prioritizedSampler.getNodeCount();
+            if (totalCount == 0) {
+                // this at least won't work for the importance weight below, where we try to divide by this
+                throw new RuntimeException("Trying to sample from prioritized sampler with 0 nodes!");
             }
-            miniBatch.add(te);
-            if (te.importanceWeight > maxImportanceWeight) {
-                maxImportanceWeight =  te.importanceWeight;
+            double maxImportanceWeight = 0;
+            for (int i=0; i<miniBatchSize; i++) {
+                TrainingExample te = prioritizedSampler.sampleAndRemove();
+                te.importanceWeight = Math.pow(totalPrioritySum / (te.priority * totalCount), importanceSamplingBiasExponent);
+                if (Double.isNaN(te.importanceWeight)) {
+                    throw new RuntimeException();
+                }
+                miniBatch.add(te);
+                if (te.importanceWeight > maxImportanceWeight) {
+                    maxImportanceWeight =  te.importanceWeight;
+                }
             }
-        }
 
-        if (maxImportanceWeight == 0.0) {
-            System.out.println(miniBatch); // TODO
-            throw new RuntimeException("Max importance weight is 0!");
-        }
+            if (maxImportanceWeight == 0.0) {
+                System.out.println(miniBatch); // TODO
+                throw new RuntimeException("Max importance weight is 0!");
+            }
 
-        // Scale weights by 1/maxImportanceWeight so that they only scale down for stability
-        for (var te : miniBatch) {
-            te.importanceWeight = te.importanceWeight / maxImportanceWeight;
-        }
-
-        // Poor man's prioritization
-//        List<TrainingExample> miniBatch = new ArrayList<>();
-//        for (int i=0; i<miniBatchSize; i++) {
-//            int idx = random.nextInt(replayHistory.size());
-//            var maxScoreExample = replayHistory.get(idx);
-//            double maxScore = replayHistory.get(idx).priority;
+            // Scale weights by 1/maxImportanceWeight so that they only scale down for stability
+            for (var te : miniBatch) {
+                te.importanceWeight = te.importanceWeight / maxImportanceWeight;
+            }
+        } else {
+            // Poor man's prioritization
+//          for (int i=0; i<miniBatchSize; i++) {
+//              int idx = random.nextInt(replayHistory.size());
+//              var maxScoreExample = replayHistory.get(idx);
+//              double maxScore = replayHistory.get(idx).priority;
 //
-//            for (int j=0; j<maxOver; j++) {
-//                var te = replayHistory.get((idx + j) % replayHistory.size());
-//                if (te.priority > maxScore) {
-//                    maxScore = te.priority;
-//                    maxScoreExample = te;
-//                }
-//            }
-//            miniBatch.add(maxScoreExample);
-//        }
+//              for (int j=0; j<10; j++) {
+//                  var te = replayHistory.get((idx + j) % replayHistory.size());
+//                  if (te.priority > maxScore) {
+//                      maxScore = te.priority;
+//                      maxScoreExample = te;
+//                  }
+//              }
+//              miniBatch.add(maxScoreExample);
+//          }
+
+            // Uniform random sampling
+            for (int i=0; i<miniBatchSize; i++) {
+                int idx = random.nextInt(replayHistory.size());
+                miniBatch.add(replayHistory.get(idx));
+            }
+        }
 
         nn.trainMiniBatch(miniBatch);
 
@@ -319,5 +328,16 @@ public class CheckersRLTrainer {
 
     public void setExplorationFactor(double explorationFactor) {
         this.explorationFactor = explorationFactor;
+    }
+
+    public int getNumGameThreads() {
+        return numGameThreads;
+    }
+
+    public void setNumGameThreads(int numGameThreads) {
+        if (numGameThreads < 1) {
+            throw new RuntimeException("Num game threads must be >= 1. Got " + numGameThreads);
+        }
+        this.numGameThreads = numGameThreads;
     }
 }

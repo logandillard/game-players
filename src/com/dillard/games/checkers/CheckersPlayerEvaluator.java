@@ -4,7 +4,9 @@ import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
+import com.dillard.games.GamePlayer;
 import com.dillard.games.checkers.MCTS.MCTSPlayer;
 import com.dillard.games.checkers.MCTS.MCTSResult;
 
@@ -30,6 +32,34 @@ public class CheckersPlayerEvaluator {
         this.printGameSummaries = printGameSummaries;
         this.printMoves = printMoves;
         this.nThreads = nThreads;
+    }
+
+    public EvaluationResult evaluate(
+            MCTSPlayer<CheckersMove, CheckersGame> player,
+            Supplier<GamePlayer<CheckersMove, CheckersGame>> opponentFactory,
+            int numGames, Random random) {
+        EvaluationResult result = new EvaluationResult();
+
+        ExecutorService es = Executors.newFixedThreadPool(nThreads);
+        for (int i=0; i<numGames; i++) {
+            es.submit(() -> {
+                double score = playOneGameEvaluation(player, opponentFactory, random);
+                result.addResult(score);
+            });
+        }
+        es.shutdown();
+        try {
+            es.awaitTermination(10, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+//        for (int i=0; i<numGames; i++) {
+//            double score = playOneGameEvaluation(player, opponentFactory, random);
+//            result.addResult(score);
+//        }
+
+        return result;
     }
 
     public EvaluationResult evaluate(
@@ -92,6 +122,52 @@ public class CheckersPlayerEvaluator {
                 // update gametree in MCTS
                 opponentMCTS.advanceToMove(result.chosenMove);
                 mcts.advanceToMove(result.chosenMove);
+            }
+
+            if (printMoves) {
+                System.out.println(game);
+            }
+        }
+
+        double p1Score = game.getFinalScore(true);
+
+        if (printGameSummaries) {
+            System.out.println("P1 start? " + player1Starts);
+            System.out.println(game);
+            System.out.println(p1Score);
+        }
+
+        return p1Score;
+    }
+
+    private double playOneGameEvaluation(
+            MCTSPlayer<CheckersMove, CheckersGame> player,
+            Supplier<GamePlayer<CheckersMove, CheckersGame>> opponentFactory,
+            Random random) {
+        boolean player1Starts = Math.random() < 0.5;
+        CheckersGame game = new CheckersGame(player1Starts);
+        var mcts = new MCTS<CheckersMove, CheckersGame, NNCheckersPlayer>(
+                player, priorWeight, 0.0, random);
+        GamePlayer<CheckersMove, CheckersGame> opponent = opponentFactory.get();
+
+        while (!game.isTerminated()) {
+            if (printMoves) {
+                System.out.println("P1? " + game.isPlayer1Turn());
+            }
+            if (game.isPlayer1Turn()) {
+                // MCTS search
+                MCTSResult<CheckersMove> result = mcts.search(game, mctsIterations, false);
+                // take move
+                game.move(result.chosenMove);
+                // update gametree in MCTS
+                mcts.advanceToMove(result.chosenMove);
+
+            } else {
+                // MCTS search
+                CheckersMove move = opponent.move(game);
+                // take move
+                game.move(move);
+                mcts.advanceToMove(move);
             }
 
             if (printMoves) {
