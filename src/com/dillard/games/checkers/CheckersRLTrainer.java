@@ -9,14 +9,14 @@ import java.util.function.Consumer;
 import com.dillard.games.checkers.MCTS.MCTSResult;
 
 public class CheckersRLTrainer {
-    private static final int replayHistorySize = 512 * 1024; // TODO AlphaGoZero uses 500k
+    private static final int replayHistorySize = 256 * 1024; // TODO AlphaGoZero uses 500k
     private static final long NN_CHECKPOINT_INTERVAL_MS = 1000 * 60 * 5; // 5 minutes
     private double explorationFactor = 1.0; // TODO start at 1.0, anneal down to 0
     private Random random;
     private CheckersValueNN trainingNN;
     private List<TrainingExample> replayHistory = null;
     private PrioritizedSampler prioritizedSampler;
-    private int numGameThreads = 3;
+    private int numGameThreads = 2;
     private volatile boolean continueTraining = true;
     private long quittingTime = 0;
     private long lastProgressTimestamp = 0;
@@ -25,10 +25,12 @@ public class CheckersRLTrainer {
     private int totalPositionsCreated = 0;
     private int miniBatchesTrained = 0;
     private Consumer<CheckersValueNN> nnCheckpointer;
+    private Consumer<CheckersValueNN> nnEvaluator;
 
-    public CheckersRLTrainer(Random random, Consumer<CheckersValueNN> nnCheckpointer) {
+    public CheckersRLTrainer(Random random, Consumer<CheckersValueNN> nnCheckpointer, Consumer<CheckersValueNN> nnEvaluator) {
         this.random = random;
         this.nnCheckpointer = nnCheckpointer;
+        this.nnEvaluator = nnEvaluator;
         prioritizedSampler = new PrioritizedSampler(random);
     }
 
@@ -66,6 +68,14 @@ public class CheckersRLTrainer {
         });
         trainingThread.start();
 
+        // Start our evaluation thread
+        Thread evaluationThread = new Thread(() -> {
+            while (continueTraining) {
+                nnEvaluator.accept(trainingNN.cloneWeights());
+            }
+        });
+        evaluationThread.start();
+
         // wait for our game threads to finish
         for (int i=0; i<numGameThreads; i++) {
             try {
@@ -79,6 +89,7 @@ public class CheckersRLTrainer {
         continueTraining = false;
         try {
             trainingThread.join();
+            evaluationThread.join();
         } catch (InterruptedException ie) {
             throw new RuntimeException(ie);
         }
@@ -128,17 +139,18 @@ public class CheckersRLTrainer {
                     double gamesPerSecond = gamesPlayedSinceLastProgress.get() * 1000 / (double)(time - lastProgressTimestamp);
                     lastProgressTimestamp = time;
                     gamesPlayedSinceLastProgress.set(0);
-                    System.out.println(String.format("%.2f games/sec. total %d (%d). trained %d. minutes remaining %.2f",
+                    long msRemaining = quittingTime - time;
+                    System.out.println(String.format("%.2f games/sec. total %d (%d). trained %d. minutes remaining %s",
                             gamesPerSecond, totalGamesPlayed, totalPositionsCreated,
                             miniBatchesTrained * miniBatchSize,
-                            (quittingTime - time) / 60000.0));
+                            (msRemaining / 60000) + ":" + ((msRemaining % 60000) / 1000)));
                 }
             }
 
             // Clone the training NN
-            // AlphaGoZero checkpoints every 1k training steps
+            // AlphaGoZero checkpoints every 1k training steps (4MM positions trained)
             gamesPlayedSinceCheckpointNN++;
-            if (gamesPlayedSinceCheckpointNN >= 20) {
+            if (gamesPlayedSinceCheckpointNN >= 10000) { // TODO this is too high, just for a test
                 playerNN = trainingNN.cloneWeights();
                 gamesPlayedSinceCheckpointNN = 0;
             }

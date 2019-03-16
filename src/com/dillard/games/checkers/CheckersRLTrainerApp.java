@@ -25,8 +25,8 @@ public class CheckersRLTrainerApp {
         boolean doTraining = true;
         boolean loadReplayHistory = true;
         boolean saveNN = true;
-        int numTrainTestIterations = 4;
-        int trainingMinutesPerIteration = 5;
+        int numTrainTestIterations = 1;
+        int trainingMinutesPerIteration = 60;
 
         // TODO
         // choose moves deterministically after 30 moves into the game?
@@ -37,7 +37,8 @@ public class CheckersRLTrainerApp {
         CheckersValueNN nn = loadOrDefaultNN(nnFilename);
         nn.getNN().setLearningRate(0.0001);
         if (!doTraining) {
-            evaluate(nn);
+            System.out.println("Evaluating...");
+            evaluate(nn, 100, 4);
             return;
         }
 
@@ -50,7 +51,8 @@ public class CheckersRLTrainerApp {
             nn = trainOneIteration(replayHistoryFilename, nnFilename, loadReplayHistory, saveNN,
                     trainingMinutesPerIteration, nn, replayHistory);
             System.out.println(String.format("Trained total %d minutes", (iter+1) * trainingMinutesPerIteration));
-            evaluate(nn);
+            System.out.println("Evaluating...");
+            evaluate(nn, 100, 4);
         }
     }
 
@@ -71,7 +73,9 @@ public class CheckersRLTrainerApp {
                         throw new RuntimeException(e);
                     }
                 }
-            });
+            },
+            (CheckersValueNN checkpointNN) ->  { evaluate(checkpointNN, 100, 1); }
+            );
 
         // slow down game generation since it is now much faster than training.
         // this allows us to train repeatedly on each position, prioritizing those with higher error...
@@ -95,16 +99,13 @@ public class CheckersRLTrainerApp {
     }
 
 
-    private static void evaluate(CheckersValueNN nn) {
-        System.out.println("Evaluating...");
+    private static void evaluate(CheckersValueNN nn, final int ngames, final int nThreads) {
         final double EVALUATOR_MCTS_PRIOR_WEIGHT = 20;
         final int mctsIterations = 400;
         final int opponentMCTSIterations = 256;
         final int abPruningDepth = 6;
-        final int ngames = 100;
-        final int nthreads = 4;
         CheckersPlayerEvaluator evaluator = new CheckersPlayerEvaluator(
-                EVALUATOR_MCTS_PRIOR_WEIGHT, mctsIterations, opponentMCTSIterations, nthreads, false, false);
+                EVALUATOR_MCTS_PRIOR_WEIGHT, mctsIterations, opponentMCTSIterations, nThreads, false, false);
         EvaluationResult evalVsHeuristic = evaluator.evaluate(
                 new NNCheckersPlayer(nn),
                 () -> new ABPruningPlayer<CheckersMove, CheckersGame>(abPruningDepth, new Random(7349)),
