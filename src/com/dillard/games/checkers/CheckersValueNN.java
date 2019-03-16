@@ -126,17 +126,11 @@ public class CheckersValueNN implements Serializable {
                 max = score;
             }
         }
-
         double sum = 0;
         for (int i=0; i<scores.size(); i++) {
             double exp = Math.exp(scores.get(i) - max);
             sum += exp;
             scores.set(i, exp);
-        }
-        if (sum == 0.0) {
-            // TODO could easily just evenly distribute probabilities if necessary,
-            // or smooth all scores by + 0.00001
-            throw new RuntimeException("Exponentiated scores summed to zero - cannot softmax!");
         }
         for (int i=0; i<scores.size(); i++) {
             scores.set(i, scores.get(i) / sum);
@@ -169,7 +163,7 @@ public class CheckersValueNN implements Serializable {
             }
         }
         if (Double.isNaN(error)) {
-            throw new RuntimeException("Error is NaN!"); // TODO
+            throw new RuntimeException("Error is NaN!");
         }
         return error;
     }
@@ -185,8 +179,8 @@ public class CheckersValueNN implements Serializable {
             // location 0 is the state value
             errorGradients[0] = (te.finalGameValue - stateValue) * tanh.derivative(stateValue) * te.importanceWeight;
 
+            List<Double> outputScores = new ArrayList<>(te.scoredMoves.size());
             if (te.scoredMoves.size() > 1) {
-                List<Double> outputScores = new ArrayList<>(te.scoredMoves.size());
                 List<Integer> indexes = new ArrayList<>(te.scoredMoves.size());
                 for (int i=0; i<te.scoredMoves.size(); i++) {
                     var scoredMove = te.scoredMoves.get(i);
@@ -205,20 +199,23 @@ public class CheckersValueNN implements Serializable {
                     int index = indexes.get(i);
                     double softmaxOutput = outputScores.get(i);
 
-//                    if (outputs[index] < -100 && scoredMove.score < softmaxOutput) {
-//                        // why you gotta keep pushing???? TODO
-//                        @SuppressWarnings("unused")
-//                        String bp = "";
-//                    }
+                    if ((outputs[index] <= -100 && scoredMove.score < softmaxOutput) ||
+                            (outputs[index] >= 100.0 && scoredMove.score > softmaxOutput)) {
+                        // why you gotta keep pushing???? TODO is there a way to prevent this?
+//                        System.out.println("pushing score down really low or up really high: " + outputs[index]);
+                        // we will skip. the score is extreme enough!
+                        continue;
+                    }
 
                     errorGradients[index] = (scoredMove.score - softmaxOutput) * te.importanceWeight;
                 }
             }
             nn.accumulateGradients(errorGradients);
-//            nn.backprop(errorGradients);
+
 //            if (true) {
+//                nn.backprop(errorGradients);
 //                outputs = nn.activate(createNNInputs(te.state.getBoardPieces(), !te.isPlayer1));
-//                stateValue = tanh.activate(outputs[0]);
+//                double stateValueAfter = tanh.activate(outputs[0]);
 //
 //                List<Double> scores = new ArrayList<>();
 //                for (Scored<CheckersMove> sm : te.scoredMoves) {
@@ -226,10 +223,10 @@ public class CheckersValueNN implements Serializable {
 //                    double score = outputs[1 + moveIndex]; // + 1 for the state value
 //                    scores.add(score);
 //                }
-//
-//                // Should I change the outputs to be linear and softmax,
 //                softmaxInPlace(scores);
+//
 //                if (true) {
+//                    @SuppressWarnings("unused")
 //                    String s = "";
 //                }
 //            }
@@ -237,32 +234,6 @@ public class CheckersValueNN implements Serializable {
         }
         nn.applyAccumulatedGradients();
     }
-
-//    private double[] errorGradients(double[] outputs, double[] correctOutputs, double[] derivatives, double importanceWeight) {
-//        double[] errorGradients = new double[outputs.length];
-//        for (int i=0; i<outputs.length; i++) {
-//            errorGradients[i] = (correctOutputs[i] - outputs[i]) * derivatives[i] * importanceWeight;
-//        }
-//        return errorGradients;
-//    }
-
-//    private double[] createCorrectOutputs(TrainingExample te, double[] actualOutputs) {
-//        // Retain the actual output for moves that were not legal possibilities.
-//        // We don't need the network to learn to output zero for illegal moves,
-//        // so we will give it zero error for illegal moves.
-//        double[] correctOutputs = actualOutputs.clone();
-//
-//        correctOutputs[0] = te.finalGameValue; // location 0 is the state value
-//        if (te.scoredMoves.size() > 1) {
-//            for (Scored<CheckersMove> scoredMove : te.scoredMoves) {
-//                int idx = moveIndex(scoredMove.value);
-//                // scale scoredMove.score (a probability) to (-1,1)
-//                double correctOutput = (scoredMove.score * 2.0) - 1.0;
-//                correctOutputs[idx + 1] = correctOutput;
-//            }
-//        }
-//        return correctOutputs;
-//    }
 
     public LayeredNN getNN() {
         return this.nn;

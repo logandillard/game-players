@@ -114,7 +114,7 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
                 maxScoreMove = entry.getKey();
             }
         }
-//        For debugging
+        // For debugging
         if (maxScoreMove == null) {
             for (var entry : children) {
                 Node<M, G> childNode = entry.getValue();
@@ -138,7 +138,6 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
 
     private double expandNode(Node<M, G> node) {
         if (node.game.isTerminated()) {
-            // TODO supposed to set visit count to 0, observedValueSum to 0, and back up stateValue
             node.observedValueSum = node.game.getFinalScore(node.game.isPlayer1Turn());
             node.visitCount = 1;
             return node.observedValueSum;
@@ -220,7 +219,7 @@ public class MCTS<M extends MCTSMove, G extends MCTSGame<M, G>, P extends MCTSPl
         }
 
         // Handle the 0-exploration case
-        if (explorationFactor <= 0) {
+        if (explorationFactor <= 0.0) {
             // L_infinity normalize (return max)
             int maxIdx = 0;
             double maxScore = visitScoredMoves.get(0).score;

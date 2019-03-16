@@ -1,4 +1,6 @@
 package com.dillard.games.ttt;
+import java.util.Random;
+
 import com.dillard.games.ABPruningPlayer;
 import com.dillard.games.ConsoleIOUtilities;
 import com.dillard.games.GamePlayer;
@@ -32,7 +34,7 @@ public class TTTApp {
 		case 3:
 			int depth = iou.getInt("What depth should the player look ahead to? ", 1, 9);
 			iou.println("Playing against an alpha beta pruning minimax player - Depth=" + depth);
-			compPlayer = new ABPruningPlayer(depth);
+			compPlayer = new ABPruningPlayer(depth, new Random(5346467));
 			break;
 		}
 

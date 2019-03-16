@@ -2,6 +2,7 @@ package com.dillard.games;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Random;
 
 public class ABPruningPlayer<M extends Move, G extends Game<M, G>> implements GamePlayer<M, G> {
 	private GameTree<M, G> gameTree;
@@ -9,13 +10,15 @@ public class ABPruningPlayer<M extends Move, G extends Game<M, G>> implements Ga
 
 	private int turnDepthLimit;
 	private int numLeafNodes = 0;
+	private Random random;
 
-	public ABPruningPlayer(int turnDepthLim) {
+	public ABPruningPlayer(int turnDepthLim, Random rand) {
 		if (turnDepthLim < 1) {
 			throw new RuntimeException("Turn depth limit must be >= 1");
 		}
 
 		turnDepthLimit = turnDepthLim;
+		this.random = rand;
 		gameTree = null;
 	}
 
@@ -66,7 +69,7 @@ public class ABPruningPlayer<M extends Move, G extends Game<M, G>> implements Ga
 //		System.out.println(numLeafNodes);
 
 		// Pick one move at random from that list
-		int highScoreMoveIndex = (int) (Math.random() * highScoreMoveList.size());
+		int highScoreMoveIndex = random.nextInt(highScoreMoveList.size());
 		return highScoreMoveList.get(highScoreMoveIndex);
 	}
 

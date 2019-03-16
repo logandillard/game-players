@@ -85,4 +85,8 @@ public class LayeredNN implements Serializable, Cloneable {
         }
         return sb.toString();
     }
+
+    public NNLayer[] getLayers() {
+        return layers;
+    }
 }

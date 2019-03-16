@@ -233,4 +233,7 @@ public class CheckersBoard implements Cloneable, Serializable {
 	public int getNumBlackKings() {
 		return numBlackKings;
 	}
+	public int getNumKings() {
+	    return numWhiteKings + numBlackKings;
+	}
 }

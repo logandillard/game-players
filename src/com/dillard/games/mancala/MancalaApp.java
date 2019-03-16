@@ -1,5 +1,7 @@
 package com.dillard.games.mancala;
 
+import java.util.Random;
+
 import com.dillard.games.ABPruningPlayer;
 import com.dillard.games.ConsoleIOUtilities;
 import com.dillard.games.GamePlayer;
@@ -53,7 +55,7 @@ public class MancalaApp {
 			depth = iou.getInt("What depth should the player look ahead to? ", 1, 9);
 			iou.println("Playing against an alpha beta pruning minimax player - Depth=" + depth);
 			player1 = new HumanMancalaPlayer(1, Mancala.NUM_TOTAL_MOVES, -1, iou);
-			player2 = new ABPruningPlayer(depth);
+			player2 = new ABPruningPlayer(depth, new Random(342345));
 			player1Msg = "Your turn...";
 			player2Msg = "AB pruning player's turn.";
 			break;
@@ -68,7 +70,7 @@ public class MancalaApp {
 			depth = iou.getInt("What depth should the AB-pruning player look ahead to? ", 1, 17);
 			iou.println("Random player playing against an alpha beta pruning minimax player - Depth=" + depth);
 			player1 = new RandomPlayer();
-			player2 = new ABPruningPlayer(depth);
+			player2 = new ABPruningPlayer(depth, new Random(342345));
 			player1Msg = "Random player's turn.";
 			player2Msg = "AB pruning player's turn.";
 			break;
@@ -81,7 +83,7 @@ public class MancalaApp {
 		case 7:
 			depth = iou.getInt("What depth should the AB-pruning player look ahead to? ", 1, 17);
 			iou.println("Alpha beta pruning minimax player - Depth=" + depth + " playing against NN player");
-			player1 = new ABPruningPlayer(depth);
+			player1 = new ABPruningPlayer(depth, new Random(342345));
 			player2 = new NNMancalaPlayer(MODEL_FILE_NAME);
 			player1Msg = "ABpruning player's turn.";
 			player2Msg = "Neural network player's turn.";

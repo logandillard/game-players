@@ -1,6 +1,7 @@
 package com.dillard.games.checkers;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Observable;
@@ -13,14 +14,17 @@ import com.dillard.games.checkers.MCTS.MCTSGame;
 @SuppressWarnings("deprecation")
 public class CheckersGame extends Observable implements
 Game<CheckersMove, CheckersGame>, MCTSGame<CheckersMove, CheckersGame> {
-	private static final int NUM_MOVES_NO_JUMPS_FOR_DRAW = 100;
+	private static final int NUM_MOVES_NO_JUMPS_FOR_DRAW = 50;
+	private static final int NUM_REPEATED_POSITIONS_FOR_DRAW = 3;
 	private static final boolean FORCED_JUMPS = true;
 
-	int numMovesNoJumps = 0;
 	private CheckersBoard board;
-	boolean player1Turn;
+	private boolean player1Turn;
+	private int numMovesNoJumpsOrCrowns = 0;
+	private Map<String, Integer> boardStateCounts = new HashMap<>();
+	private int maxBoardStateCount = 1;
 	// NOTE player 1 == white
-	PieceColor player1Color = PieceColor.WHITE;
+	private final PieceColor player1Color = PieceColor.WHITE;
 
 	public CheckersGame() {
 		this(true);
@@ -29,15 +33,18 @@ Game<CheckersMove, CheckersGame>, MCTSGame<CheckersMove, CheckersGame> {
         board = new CheckersBoard();
         player1Turn = isPlayer1Turn;
     }
-	private CheckersGame(CheckersBoard board, boolean player1Turn, int numMovesNoJumps) {
+	private CheckersGame(CheckersBoard board, boolean player1Turn, int numMovesNoJumpsOrCrowns,
+	        Map<String, Integer> boardStateCounts, int maxBoardStateCount) {
 		this.board = board;
 		this.player1Turn = player1Turn;
-		this.numMovesNoJumps = numMovesNoJumps;
+		this.numMovesNoJumpsOrCrowns = numMovesNoJumpsOrCrowns;
+		this.boardStateCounts = boardStateCounts;
+		this.maxBoardStateCount = maxBoardStateCount;
 	}
 
 	@Override
     public CheckersGame clone() {
-		return new CheckersGame(board.clone(), player1Turn, numMovesNoJumps);
+		return new CheckersGame(board.clone(), player1Turn, numMovesNoJumpsOrCrowns, new HashMap<>(boardStateCounts), maxBoardStateCount);
 	}
 
 	public CheckersBoard cloneBoard() {
@@ -75,7 +82,7 @@ Game<CheckersMove, CheckersGame>, MCTSGame<CheckersMove, CheckersGame> {
 			} catch (BoardException e) {
 				throw new InvalidMoveException(e);
 			}
-			numMovesNoJumps = 0;
+			numMovesNoJumpsOrCrowns = 0;
 
 		    // Get further jump moves
 			furtherJumpMoves = new ArrayList<>();
@@ -85,7 +92,7 @@ Game<CheckersMove, CheckersGame>, MCTSGame<CheckersMove, CheckersGame> {
 			}
 
 		} else {
-			numMovesNoJumps++;
+			numMovesNoJumpsOrCrowns++;
 		}
 
 		// King moved piece if appropriate
@@ -93,10 +100,12 @@ Game<CheckersMove, CheckersGame>, MCTSGame<CheckersMove, CheckersGame> {
     		if (board.getPiece(to).getColor() == PieceColor.WHITE) {
     			if (to.getRow() == CheckersBoard.NUM_ROWS - 1) {
     				board.kingPiece(move.to);
+    				numMovesNoJumpsOrCrowns = 0;
     			}
     		} else {
     			if (to.getRow() == 0) {
     				board.kingPiece(move.to);
+    				numMovesNoJumpsOrCrowns = 0;
     			}
     		}
 		}
@@ -108,11 +117,77 @@ Game<CheckersMove, CheckersGame>, MCTSGame<CheckersMove, CheckersGame> {
 		    availableMoves = furtherJumpMoves;
 		}
 
+		if (!piece.isKing || move.jumpedLocation != null) {
+		    // moving a non-king, or jumping, makes it so all past game states can never be repeated.
+		    // clear the counts so that we do not have to clone them all
+		    boardStateCounts.clear();
+		}
+
+		if (board.getNumKings() > 0) {
+		    // only need to keep these counts if there are kings
+		    updateBoardStateCounts();
+		}
+
 		setChanged();
 		notifyObservers();
 	}
 
-	public Piece[][] getBoardPieces() {
+	private void updateBoardStateCounts() {
+        String boardStateStr = getBoardStateString();
+	    Integer existing = boardStateCounts.get(boardStateStr);
+	    if (existing == null) {
+	        existing = 0;
+	    }
+	    existing++;
+	    boardStateCounts.put(boardStateStr, existing);
+	    if (existing > maxBoardStateCount) {
+	        maxBoardStateCount = existing;
+	    }
+    }
+
+    private String getBoardStateString() {
+        var board = this.board.getBoardPieces();
+        StringBuilder state = new StringBuilder();
+//        for (int row=0; row<board.length; row++) {
+//            for (int col=row % 2; col<board[row].length; col += 2) {
+//                Piece p = board[row][col];
+//                if (p == null) {
+//                    state.append('0');
+//                } else {
+//                    if (p.isKing) {
+//                        if (p.color == PieceColor.WHITE) {
+//                            state.append('W');
+//                        } else {
+//                            state.append('B');
+//                        }
+//                    } else {
+//                        if (p.color == PieceColor.WHITE) {
+//                            state.append('w');
+//                        } else {
+//                            state.append('b');
+//                        }
+//                    }
+//                }
+//            }
+//        }
+        // only need to keep track of the kings because non-king moves reset the counts
+        for (int row=0; row<board.length; row++) {
+            for (int col=row % 2; col<board[row].length; col += 2) {
+                Piece p = board[row][col];
+                if (p != null && p.isKing) {
+                    state.append(String.valueOf(row * 10 + col));
+                    if (p.color == PieceColor.WHITE) {
+                        state.append('W');
+                    } else {
+                        state.append('B');
+                    }
+                }
+            }
+        }
+        return state.toString();
+    }
+
+    public Piece[][] getBoardPieces() {
 		return board.getBoardPieces();
 	}
 
@@ -257,9 +332,11 @@ Game<CheckersMove, CheckersGame>, MCTSGame<CheckersMove, CheckersGame> {
 		// someone has lost
 		return board.getNumWhitePieces() == 0 || board.getNumBlackPieces() == 0 ||
     		// or it's time for a draw
-    		numMovesNoJumps >= NUM_MOVES_NO_JUMPS_FOR_DRAW ||
+    		numMovesNoJumpsOrCrowns >= NUM_MOVES_NO_JUMPS_FOR_DRAW ||
     		// or the current player has no moves
-    		availableMoves.size() == 0 ;
+    		availableMoves.size() == 0 ||
+    		// we have seen the same position > 3 times
+    		maxBoardStateCount > NUM_REPEATED_POSITIONS_FOR_DRAW;
 	}
 
 	public double evaluatePieceCount(boolean player1) {
@@ -308,7 +385,11 @@ Game<CheckersMove, CheckersGame>, MCTSGame<CheckersMove, CheckersGame> {
            }
        }
 
-       if (numMovesNoJumps >= NUM_MOVES_NO_JUMPS_FOR_DRAW) {
+       if (numMovesNoJumpsOrCrowns >= NUM_MOVES_NO_JUMPS_FOR_DRAW) {
+           return 0.0;
+       }
+
+       if (maxBoardStateCount > NUM_REPEATED_POSITIONS_FOR_DRAW) {
            return 0.0;
        }
 

@@ -1,5 +1,7 @@
 package com.dillard.games.checkers;
 
+import java.util.Random;
+
 import com.dillard.games.ABPruningPlayer;
 import com.dillard.games.checkers.ui.CheckersGUI;
 
@@ -9,7 +11,7 @@ public class CheckersGUIApp {
 
 		CheckersGUI ui = new CheckersGUI(model,
 				null,
-				new ABPruningPlayer<CheckersMove, CheckersGame>(10));
+				new ABPruningPlayer<CheckersMove, CheckersGame>(10, new Random(524353)));
 		ui.run();
 	}
 }

@@ -49,7 +49,7 @@ public class CheckersPlayerEvaluator {
         }
         es.shutdown();
         try {
-            es.awaitTermination(10, TimeUnit.MINUTES);
+            es.awaitTermination(30, TimeUnit.MINUTES);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -94,12 +94,12 @@ public class CheckersPlayerEvaluator {
             MCTSPlayer<CheckersMove, CheckersGame> player,
             MCTSPlayer<CheckersMove, CheckersGame> opponent,
             Random random) {
-        boolean player1Starts = Math.random() < 0.5;
+        boolean player1Starts = random.nextBoolean();
         CheckersGame game = new CheckersGame(player1Starts);
         var mcts = new MCTS<CheckersMove, CheckersGame, NNCheckersPlayer>(
                 player, priorWeight, 0.0, random);
         var opponentMCTS = new MCTS<CheckersMove, CheckersGame, NNCheckersPlayer>(
-                opponent, priorWeight, 0.5, random);
+                opponent, priorWeight, 0.0, random);
 
         while (!game.isTerminated()) {
             if (printMoves) {
@@ -144,7 +144,7 @@ public class CheckersPlayerEvaluator {
             MCTSPlayer<CheckersMove, CheckersGame> player,
             Supplier<GamePlayer<CheckersMove, CheckersGame>> opponentFactory,
             Random random) {
-        boolean player1Starts = Math.random() < 0.5;
+        boolean player1Starts = random.nextBoolean();
         CheckersGame game = new CheckersGame(player1Starts);
         var mcts = new MCTS<CheckersMove, CheckersGame, NNCheckersPlayer>(
                 player, priorWeight, 0.0, random);

@@ -1,6 +1,7 @@
 package com.dillard.games.mancala;
 
 import java.io.IOException;
+import java.util.Random;
 
 import com.dillard.games.ABPruningPlayer;
 import com.dillard.games.ConsoleIOUtilities;
@@ -42,10 +43,10 @@ public class NNMancalaTrainer  {
 		NNMancalaPlayer nnPlayer = new NNMancalaPlayer(NNMancalaPlayer.MODEL_FILE);
 		//NNMancalaPlayer nnPlayer2= new NNMancalaPlayer(NNMancalaPlayer.MODEL_FILE);;
 		GamePlayer<MancalaMove, Mancala> randPlayer = new RandomPlayer<>();
-		GamePlayer<MancalaMove, Mancala> abPruning1 = new ABPruningPlayer<>(1);
-		GamePlayer<MancalaMove, Mancala> abPruning2 = new ABPruningPlayer<>(2);
-		GamePlayer<MancalaMove, Mancala> abPruning3 = new ABPruningPlayer<>(3);
-		GamePlayer<MancalaMove, Mancala> abPruning4 = new ABPruningPlayer<>(4);
+		GamePlayer<MancalaMove, Mancala> abPruning1 = new ABPruningPlayer<>(1, new Random(342345));
+		GamePlayer<MancalaMove, Mancala> abPruning2 = new ABPruningPlayer<>(2, new Random(342345));
+		GamePlayer<MancalaMove, Mancala> abPruning3 = new ABPruningPlayer<>(3, new Random(342345));
+		GamePlayer<MancalaMove, Mancala> abPruning4 = new ABPruningPlayer<>(4, new Random(342345));
 
 		// Set benchmarking players (opponents)
 		GamePlayer<MancalaMove, Mancala>[] benchOpponents = new GamePlayer[] {abPruning2, abPruning1}; //, abPruning1, randPlayer

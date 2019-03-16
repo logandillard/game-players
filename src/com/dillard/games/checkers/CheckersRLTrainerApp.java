@@ -1,5 +1,7 @@
 package com.dillard.games.checkers;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -24,7 +26,7 @@ public class CheckersRLTrainerApp {
         boolean loadReplayHistory = true;
         boolean saveNN = true;
         int numTrainTestIterations = 4;
-        int trainingMinutesPerIteration = 15;
+        int trainingMinutesPerIteration = 5;
 
         // TODO
         // choose moves deterministically after 30 moves into the game?
@@ -32,15 +34,8 @@ public class CheckersRLTrainerApp {
         // add evaluations at specific game states
         // replay history is maybe too short
 
-        var rawNN = loadNN(nnFilename);
-        CheckersValueNN nn;
-        if (rawNN != null) {
-            nn = new CheckersValueNN(rawNN);
-        } else {
-            System.out.println("No serialized neural network found. Starting from scratch");
-            nn = CheckersValueNN.build();
-        }
-
+        CheckersValueNN nn = loadOrDefaultNN(nnFilename);
+        nn.getNN().setLearningRate(0.0001);
         if (!doTraining) {
             evaluate(nn);
             return;
@@ -58,7 +53,6 @@ public class CheckersRLTrainerApp {
             evaluate(nn);
         }
     }
-
 
     private static CheckersValueNN trainOneIteration(String replayHistoryFilename, String nnFilename,
             boolean saveReplayHistory, boolean saveNN, int trainingMinutes,
@@ -82,7 +76,7 @@ public class CheckersRLTrainerApp {
         // slow down game generation since it is now much faster than training.
         // this allows us to train repeatedly on each position, prioritizing those with higher error...
         // though I don't know if this actually makes a difference or not.
-        trainer.setNumGameThreads(2);
+        trainer.setNumGameThreads(3);
 
         TrainingResult trainingResult = trainer.train(trainingMinutes * 60 * 1000, nn, replayHistory);
         nn = trainingResult.trainingNN;
@@ -95,16 +89,7 @@ public class CheckersRLTrainerApp {
         }
 
         if (saveReplayHistory && !replayHistory.isEmpty()) {
-            // save replay history in a separate thread, since this takes a long time
-            final var replayHistoryToSave = replayHistory;
-            new Thread(() -> {
-                try {
-                    serializeReplayHistory(replayHistoryToSave, replayHistoryFilename);
-                } catch (Exception e) {
-                    System.out.println("Unable to save replay history!");
-                    e.printStackTrace();
-                }
-            }).start();;
+            serializeReplayHistory(replayHistory, replayHistoryFilename);
         }
         return nn;
     }
@@ -113,14 +98,16 @@ public class CheckersRLTrainerApp {
     private static void evaluate(CheckersValueNN nn) {
         System.out.println("Evaluating...");
         final double EVALUATOR_MCTS_PRIOR_WEIGHT = 20;
+        final int mctsIterations = 400;
         final int opponentMCTSIterations = 256;
         final int abPruningDepth = 6;
-        final int ngames = 400;
+        final int ngames = 100;
+        final int nthreads = 4;
         CheckersPlayerEvaluator evaluator = new CheckersPlayerEvaluator(
-                EVALUATOR_MCTS_PRIOR_WEIGHT, 128, opponentMCTSIterations, 4, false, false);
+                EVALUATOR_MCTS_PRIOR_WEIGHT, mctsIterations, opponentMCTSIterations, nthreads, false, false);
         EvaluationResult evalVsHeuristic = evaluator.evaluate(
                 new NNCheckersPlayer(nn),
-                () -> new ABPruningPlayer<CheckersMove, CheckersGame>(abPruningDepth),
+                () -> new ABPruningPlayer<CheckersMove, CheckersGame>(abPruningDepth, new Random(7349)),
                 ngames,
                 new Random(432));
         System.out.println(String.format(
@@ -190,10 +177,20 @@ public class CheckersRLTrainerApp {
 //  |      w |
 //   --------
 
+    private static CheckersValueNN loadOrDefaultNN(String nnFilename)
+            throws FileNotFoundException, IOException, ClassNotFoundException {
+        var rawNN = loadNN(nnFilename);
+        if (rawNN != null) {
+            return new CheckersValueNN(rawNN);
+        } else {
+            System.out.println("No serialized neural network found. Starting from scratch");
+            return CheckersValueNN.build();
+        }
+    }
 
     @SuppressWarnings("unchecked")
     private static List<TrainingExample> loadReplayHistory(String filename) throws FileNotFoundException, IOException, ClassNotFoundException {
-        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filename))) {
+        try (ObjectInputStream ois = new ObjectInputStream(new BufferedInputStream(new FileInputStream(filename), 8*1024*1024))) {
             System.out.println("Loading replay history");
             return (List<TrainingExample>) ois.readObject();
         } catch (FileNotFoundException fnf) {
@@ -204,7 +201,7 @@ public class CheckersRLTrainerApp {
 
     private static void serializeReplayHistory(List<TrainingExample> trainingExamples, String filename)
             throws FileNotFoundException, IOException {
-        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filename))) {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(filename), 8*1024*1024))) {
             System.out.println("Saving replay history (do not cancel!)");
             oos.writeObject(trainingExamples);
             System.out.println(String.format("Saved replay history (%d) to ", trainingExamples.size()) + filename);
@@ -212,13 +209,13 @@ public class CheckersRLTrainerApp {
     }
 
     private static void serializeNN(LayeredNN nn, String filename) throws FileNotFoundException, IOException {
-        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filename))) {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(filename), 8*1024*1024))) {
             oos.writeObject(nn);
         }
     }
 
     private static LayeredNN loadNN(String filename) throws FileNotFoundException, IOException, ClassNotFoundException {
-        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filename))) {
+        try (ObjectInputStream ois = new ObjectInputStream(new BufferedInputStream(new FileInputStream(filename), 8*1024*1024))) {
             System.out.println("Loading NN");
             return (LayeredNN) ois.readObject();
         } catch (FileNotFoundException fnf) {

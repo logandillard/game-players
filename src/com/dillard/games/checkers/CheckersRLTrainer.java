@@ -1,7 +1,5 @@
 package com.dillard.games.checkers;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -11,7 +9,7 @@ import java.util.function.Consumer;
 import com.dillard.games.checkers.MCTS.MCTSResult;
 
 public class CheckersRLTrainer {
-    private static final int replayHistorySize = 128 * 1024; // TODO AlphaGoZero uses 500k
+    private static final int replayHistorySize = 512 * 1024; // TODO AlphaGoZero uses 500k
     private static final long NN_CHECKPOINT_INTERVAL_MS = 1000 * 60 * 5; // 5 minutes
     private double explorationFactor = 1.0; // TODO start at 1.0, anneal down to 0
     private Random random;
@@ -34,8 +32,7 @@ public class CheckersRLTrainer {
         prioritizedSampler = new PrioritizedSampler(random);
     }
 
-    public TrainingResult train(long durationMs, CheckersValueNN nn, List<TrainingExample> history)
-            throws FileNotFoundException, IOException, ClassNotFoundException {
+    public TrainingResult train(long durationMs, CheckersValueNN nn, List<TrainingExample> history) {
         this.replayHistory = history;
         if (this.replayHistory == null) {
             this.replayHistory = new ArrayList<>();
@@ -102,12 +99,12 @@ public class CheckersRLTrainer {
     }
 
     private void playGamesForTrainingData() {
-        CheckersValueNN checkpointNN = trainingNN.cloneWeights();
+        CheckersValueNN playerNN = trainingNN.cloneWeights();
         lastProgressTimestamp = System.currentTimeMillis();
         int gamesPlayedSinceCheckpointNN = 0;
         while (System.currentTimeMillis() < quittingTime) {
 
-            GameResult result = playOneGameForTrainingData(checkpointNN);
+            GameResult result = playOneGameForTrainingData(playerNN);
 //            System.out.println(String.format("%.0f (%.6f) Player1 start? %b",
 //                    result.finalScore, result.error, result.startingPlayer1Turn));
             gamesPlayedSinceLastProgress.incrementAndGet();
@@ -142,7 +139,7 @@ public class CheckersRLTrainer {
             // AlphaGoZero checkpoints every 1k training steps
             gamesPlayedSinceCheckpointNN++;
             if (gamesPlayedSinceCheckpointNN >= 20) {
-                checkpointNN = trainingNN.cloneWeights();
+                playerNN = trainingNN.cloneWeights();
                 gamesPlayedSinceCheckpointNN = 0;
             }
         }
@@ -160,6 +157,8 @@ public class CheckersRLTrainer {
 
         var mcts = new MCTS<CheckersMove, CheckersGame, NNCheckersPlayer>(
                 player, MCTS_PRIOR_WEIGHT, explorationFactor, random);
+//        var opponentMCTS = new MCTS<CheckersMove, CheckersGame, NNCheckersPlayer>(
+//                player, MCTS_PRIOR_WEIGHT, explorationFactor, random);
 
         while (!game.isTerminated()) {
             // Evaluate state for loss
@@ -255,11 +254,11 @@ public class CheckersRLTrainer {
 //    final int maxOver = 10;
     final int miniBatchSize = 32;
     final double MAX_ERROR_VALUE = 3;
-    final int NUM_MCTS_ITERS = 100;
-    final double MCTS_PRIOR_WEIGHT = 20.0; // higher leads to more exploration in MCTS
+    final int NUM_MCTS_ITERS = 400;
+    final double MCTS_PRIOR_WEIGHT = 20.0; // higher values the priors more vs. the state values
     private final double priorityExponent = 0.5;
     private final double importanceSamplingBiasExponent = 0.5; // anneal from 0.4 to 1.0
-    private final boolean doPrioritySampling = true;
+    private final boolean doPrioritySampling = false;
 
     private void trainMiniBatch(CheckersValueNN nn, PrioritizedSampler prioritizedSampler) {
         List<TrainingExample> miniBatch = new ArrayList<>();
@@ -280,7 +279,7 @@ public class CheckersRLTrainer {
                 }
                 miniBatch.add(te);
                 if (te.importanceWeight > maxImportanceWeight) {
-                    maxImportanceWeight =  te.importanceWeight;
+                    maxImportanceWeight = te.importanceWeight;
                 }
             }
 
@@ -294,34 +293,22 @@ public class CheckersRLTrainer {
                 te.importanceWeight = te.importanceWeight / maxImportanceWeight;
             }
         } else {
-            // Poor man's prioritization
-//          for (int i=0; i<miniBatchSize; i++) {
-//              int idx = random.nextInt(replayHistory.size());
-//              var maxScoreExample = replayHistory.get(idx);
-//              double maxScore = replayHistory.get(idx).priority;
-//
-//              for (int j=0; j<10; j++) {
-//                  var te = replayHistory.get((idx + j) % replayHistory.size());
-//                  if (te.priority > maxScore) {
-//                      maxScore = te.priority;
-//                      maxScoreExample = te;
-//                  }
-//              }
-//              miniBatch.add(maxScoreExample);
-//          }
-
             // Uniform random sampling
             for (int i=0; i<miniBatchSize; i++) {
                 int idx = random.nextInt(replayHistory.size());
-                miniBatch.add(replayHistory.get(idx));
+                var te = replayHistory.get(idx);
+                te.importanceWeight = 1.0;
+                miniBatch.add(te);
             }
         }
 
         nn.trainMiniBatch(miniBatch);
 
-        // re-score examples in miniBatch
-        for (var te : miniBatch) {
-            te.priority = Math.pow(Math.abs(nn.error(te)), priorityExponent);
+        if (doPrioritySampling) {
+            // re-score examples in miniBatch
+            for (var te : miniBatch) {
+                te.priority = Math.pow(Math.abs(nn.error(te)), priorityExponent);
+            }
         }
         prioritizedSampler.addAll(miniBatch);
     }
