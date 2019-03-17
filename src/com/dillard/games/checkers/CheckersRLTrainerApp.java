@@ -20,7 +20,7 @@ public class CheckersRLTrainerApp {
 
     public static void main(String[] args) throws FileNotFoundException, IOException, ClassNotFoundException {
         String replayHistoryFilename = "/Users/logan/game-players/replay_history.ser";
-        String nnFilename = "/Users/logan/game-players/final_nn.ser";
+        String nnFilename = "/Users/logan/game-players/nn.ser";
 
         boolean doTraining = true;
         boolean loadReplayHistory = true;
@@ -29,13 +29,12 @@ public class CheckersRLTrainerApp {
         int trainingMinutesPerIteration = 60;
 
         // TODO
-        // choose moves deterministically after 30 moves into the game?
         // anneal down the move exploration? anneal up the IS bias correction?
+        // choose moves deterministically after 30 moves into the game?
         // add evaluations at specific game states
-        // replay history is maybe too short
 
         CheckersValueNN nn = loadOrDefaultNN(nnFilename);
-        nn.getNN().setLearningRate(0.0001);
+//        nn.getNN().setLearningRate(0.001);
         if (!doTraining) {
             System.out.println("Evaluating...");
             evaluate(nn, 100, 4);
@@ -76,11 +75,6 @@ public class CheckersRLTrainerApp {
             },
             (CheckersValueNN checkpointNN) ->  { evaluate(checkpointNN, 100, 1); }
             );
-
-        // slow down game generation since it is now much faster than training.
-        // this allows us to train repeatedly on each position, prioritizing those with higher error...
-        // though I don't know if this actually makes a difference or not.
-        trainer.setNumGameThreads(3);
 
         TrainingResult trainingResult = trainer.train(trainingMinutes * 60 * 1000, nn, replayHistory);
         nn = trainingResult.trainingNN;
@@ -191,7 +185,7 @@ public class CheckersRLTrainerApp {
 
     @SuppressWarnings("unchecked")
     private static List<TrainingExample> loadReplayHistory(String filename) throws FileNotFoundException, IOException, ClassNotFoundException {
-        try (ObjectInputStream ois = new ObjectInputStream(new BufferedInputStream(new FileInputStream(filename), 8*1024*1024))) {
+        try (ObjectInputStream ois = new ObjectInputStream(new BufferedInputStream(new FileInputStream(filename), 32*1024*1024))) {
             System.out.println("Loading replay history");
             return (List<TrainingExample>) ois.readObject();
         } catch (FileNotFoundException fnf) {

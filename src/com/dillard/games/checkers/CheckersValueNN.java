@@ -10,6 +10,7 @@ import com.dillard.nn.ActivationFunctionTanH;
 import com.dillard.nn.LayeredNN;
 import com.dillard.nn.NNLayer;
 import com.dillard.nn.NNLayerFullyConnected;
+import com.dillard.nn.NNLayerResidual;
 import com.dillard.nn.WeightInitializer;
 import com.dillard.nn.WeightInitializerGaussianFixedVariance;
 
@@ -30,7 +31,14 @@ public class CheckersValueNN implements Serializable {
 
         NNLayer[] layers = new NNLayer[] {
             new NNLayerFullyConnected(NUM_INPUTS, 100, new ActivationFunctionReLU(), initializer, learningRate, l2),
-            new NNLayerFullyConnected(100, 100, new ActivationFunctionReLU(), initializer, learningRate, l2),
+            new NNLayerResidual(new NNLayer[] {
+                    new NNLayerFullyConnected(100, 100, new ActivationFunctionReLU(), initializer, learningRate, l2),
+                    new NNLayerFullyConnected(100, 100, new ActivationFunctionReLU(), initializer, learningRate, l2),
+            }),
+//            new NNLayerResidual(new NNLayer[] {
+//                    new NNLayerFullyConnected(100, 100, new ActivationFunctionReLU(), initializer, learningRate, l2),
+//                    new NNLayerFullyConnected(100, 100, new ActivationFunctionReLU(), initializer, learningRate, l2),
+//            }),
             new NNLayerFullyConnected(100, NUM_OUTPUTS, new ActivationFunctionLinear(), initializer, learningRate, l2)
         };
         LayeredNN nn =  new LayeredNN(layers);
@@ -158,8 +166,11 @@ public class CheckersValueNN implements Serializable {
             for (int i=0; i<te.scoredMoves.size(); i++) {
                 var scoredMove = te.scoredMoves.get(i);
                 double softmaxOutput = outputScores.get(i);
-                double e = (scoredMove.score - softmaxOutput);
-                error += e*e;
+
+//                double e = (scoredMove.score - softmaxOutput);
+//                error += e*e;
+                double e = -scoredMove.score * Math.log(softmaxOutput);
+                error += e;
             }
         }
         if (Double.isNaN(error)) {
@@ -168,8 +179,16 @@ public class CheckersValueNN implements Serializable {
         return error;
     }
 
-    public void trainMiniBatch(List<TrainingExample> miniBatch) {
+    public double trainMiniBatch(List<TrainingExample> miniBatch) {
+
+//        double errorSumBefore = 0;
+//        for (var te : miniBatch) {
+//            errorSumBefore += error(te);
+//        }
+        double errorSum = 0;
+
         for (var te : miniBatch) {
+            double instanceError = 0;
             double[] outputs = nn.activate(createNNInputs(te.state.getBoardPieces(), !te.isPlayer1));
             double stateValue = tanh.activate(outputs[0]);
 
@@ -178,6 +197,7 @@ public class CheckersValueNN implements Serializable {
             double[] errorGradients = new double[outputs.length];
             // location 0 is the state value
             errorGradients[0] = (te.finalGameValue - stateValue) * tanh.derivative(stateValue) * te.importanceWeight;
+            instanceError += (te.finalGameValue - stateValue) * (te.finalGameValue - stateValue);
 
             List<Double> outputScores = new ArrayList<>(te.scoredMoves.size());
             if (te.scoredMoves.size() > 1) {
@@ -199,6 +219,8 @@ public class CheckersValueNN implements Serializable {
                     int index = indexes.get(i);
                     double softmaxOutput = outputScores.get(i);
 
+                    instanceError += -scoredMove.score * Math.log(softmaxOutput);
+
                     if ((outputs[index] <= -100 && scoredMove.score < softmaxOutput) ||
                             (outputs[index] >= 100.0 && scoredMove.score > softmaxOutput)) {
                         // why you gotta keep pushing???? TODO is there a way to prevent this?
@@ -210,10 +232,16 @@ public class CheckersValueNN implements Serializable {
                     errorGradients[index] = (scoredMove.score - softmaxOutput) * te.importanceWeight;
                 }
             }
-            nn.accumulateGradients(errorGradients);
+//            nn.accumulateGradients(errorGradients);
+            nn.backprop(errorGradients);
+
+            if (instanceError > 10) {
+                String breakpoint= "";
+            }
+
+            errorSum += instanceError;
 
 //            if (true) {
-//                nn.backprop(errorGradients);
 //                outputs = nn.activate(createNNInputs(te.state.getBoardPieces(), !te.isPlayer1));
 //                double stateValueAfter = tanh.activate(outputs[0]);
 //
@@ -232,7 +260,18 @@ public class CheckersValueNN implements Serializable {
 //            }
 
         }
-        nn.applyAccumulatedGradients();
+//        nn.applyAccumulatedGradients();
+
+//        double errorSumAfter = 0;
+//        for (var te : miniBatch) {
+//            errorSumAfter += error(te);
+//        }
+//        System.out.println(String.format("%.3f -> %.3f (%f)",
+//                errorSumBefore/miniBatch.size(),
+//                errorSumAfter/miniBatch.size(),
+//                errorSumAfter/errorSumBefore));
+        System.out.println(String.format("%.3f", errorSum / miniBatch.size()));
+        return errorSum;
     }
 
     public LayeredNN getNN() {

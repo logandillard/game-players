@@ -112,7 +112,6 @@ public class CheckersPlayerEvaluator {
                 game.move(result.chosenMove);
                 // update gametree in MCTS
                 mcts.advanceToMove(result.chosenMove);
-
                 opponentMCTS.advanceToMove(result.chosenMove);
             } else {
                 // MCTS search

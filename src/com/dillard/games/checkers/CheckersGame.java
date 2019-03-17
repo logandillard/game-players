@@ -20,6 +20,7 @@ Game<CheckersMove, CheckersGame>, MCTSGame<CheckersMove, CheckersGame> {
 
 	private CheckersBoard board;
 	private boolean player1Turn;
+	private int moveCount = 0;
 	private int numMovesNoJumpsOrCrowns = 0;
 	private Map<String, Integer> boardStateCounts = new HashMap<>();
 	private int maxBoardStateCount = 1;
@@ -127,6 +128,8 @@ Game<CheckersMove, CheckersGame>, MCTSGame<CheckersMove, CheckersGame> {
 		    // only need to keep these counts if there are kings
 		    updateBoardStateCounts();
 		}
+
+		moveCount++;
 
 		setChanged();
 		notifyObservers();
@@ -402,6 +405,10 @@ Game<CheckersMove, CheckersGame>, MCTSGame<CheckersMove, CheckersGame> {
 
 	public String toString(Map<CheckersLocation, String> locationReplacements) {
 		return board.toString(locationReplacements);
+	}
+
+	public int getMoveCount() {
+	    return moveCount;
 	}
 
 	@Override
