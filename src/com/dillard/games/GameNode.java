@@ -4,34 +4,44 @@ import java.util.List;
 
 public class GameNode<M extends Move, G extends Game<M, G>> implements Comparable<GameNode<M, G>> {
 	private G game;
+	private M move;
 	private double score;
 	private List<GameNode<M, G>> children;
 
-	GameNode(G g) {
+	GameNode(G g, M m) {
 		game = g.clone();
+		move = m;
 		children = null;
 	}
 
 	public void addChild(GameNode<M, G> child) {
-		if(children == null) children = new ArrayList<GameNode<M, G>>();
+		if (children == null) children = new ArrayList<GameNode<M, G>>();
 		children.add(child);
+	}
+
+	public GameNode<M, G> getChildForMove(M move) {
+	    if (children != null) {
+    	    for (var child : children) {
+    	        if (child.move.equals(move)) {
+    	            return child;
+    	        }
+    	    }
+	    }
+	    return null;
 	}
 
 	public List<GameNode<M, G>> getChildren() {
 		return children;
 	}
-//	public void setChildren(ArrayList<GameNode> children) {
-//		this.children = children;
-//	}
 	public void clearChildren() {
 		children = null;
 	}
 	public G getGame() {
 		return game;
 	}
-//	public void setGame(Game game) {
-//		this.game = game;
-//	}
+	public M getMove() {
+	    return move;
+	}
 	public double getScore() {
 		return score;
 	}

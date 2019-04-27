@@ -2,6 +2,7 @@ package com.dillard.games.checkers;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -10,13 +11,14 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Consumer;
 
 import com.dillard.games.ABPruningPlayer;
-import com.dillard.games.checkers.CheckersPlayerEvaluator.EvaluationResult;
 import com.dillard.games.checkers.CheckersRLTrainer.TrainingResult;
 import com.dillard.nn.LayeredNN;
 
 public class CheckersRLTrainerApp {
+    private static final String QUIT_FILE_PATH = "/Users/logan/game-players/quit-training";
 
     public static void main(String[] args) throws FileNotFoundException, IOException, ClassNotFoundException {
         String replayHistoryFilename = "/Users/logan/game-players/replay_history.ser";
@@ -44,11 +46,16 @@ public class CheckersRLTrainerApp {
         List<TrainingExample> replayHistory = null;
         if (loadReplayHistory) {
             replayHistory = loadReplayHistory(replayHistoryFilename);
+            if (replayHistory != null) {
+                System.out.println(String.format("Replay history size: %d", replayHistory.size()));
+            }
         }
 
         for (int iter=0; iter<numTrainTestIterations; iter++) {
             nn = trainOneIteration(replayHistoryFilename, nnFilename, loadReplayHistory, saveNN,
                     trainingMinutesPerIteration, nn, replayHistory);
+//            nn = trainOneIterationStaticReplayHistory(nnFilename, saveNN,
+//                    trainingMinutesPerIteration, nn, replayHistory);
             System.out.println(String.format("Trained total %d minutes", (iter+1) * trainingMinutesPerIteration));
             System.out.println("Evaluating...");
             evaluate(nn, 100, 4);
@@ -60,25 +67,18 @@ public class CheckersRLTrainerApp {
             CheckersValueNN nn, List<TrainingExample> replayHistory)
             throws FileNotFoundException, IOException, ClassNotFoundException {
 
-        System.out.println("Training");
+        System.out.println(String.format("Training for %d minutes", trainingMinutes));
         CheckersRLTrainer trainer = new CheckersRLTrainer(
             new Random(12345),
-            (CheckersValueNN checkpointNN) ->  {
-                if (saveNN) {
-                    try {
-                        serializeNN(checkpointNN.getNN(), nnFilename);
-                        System.out.println("Saved NN");
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-            },
-            (CheckersValueNN checkpointNN) ->  { evaluate(checkpointNN, 100, 1); }
+            buildCheckpointer(saveNN, nnFilename),
+            buildEvaluator(),
+            () -> new File(QUIT_FILE_PATH).exists()
             );
 
         TrainingResult trainingResult = trainer.train(trainingMinutes * 60 * 1000, nn, replayHistory);
         nn = trainingResult.trainingNN;
-        replayHistory = trainingResult.replayHistory;
+        replayHistory = trainingResult.replayHistory.getReplayHistory();
+        new File(QUIT_FILE_PATH).delete();
         System.out.println("Finished training");
 
         if (saveNN) {
@@ -89,13 +89,58 @@ public class CheckersRLTrainerApp {
         if (saveReplayHistory && !replayHistory.isEmpty()) {
             serializeReplayHistory(replayHistory, replayHistoryFilename);
         }
+
         return nn;
     }
 
+    @SuppressWarnings("unused")
+    private static CheckersValueNN trainOneIterationStaticReplayHistory(String nnFilename,
+            boolean saveNN, int trainingMinutes,
+            CheckersValueNN nn, List<TrainingExample> replayHistory)
+            throws FileNotFoundException, IOException, ClassNotFoundException {
+
+        System.out.println("Training with static replay history");
+        CheckersRLTrainer trainer = new CheckersRLTrainer(
+            new Random(12345),
+            buildCheckpointer(saveNN, nnFilename),
+            buildEvaluator(),
+            () -> new File(QUIT_FILE_PATH).exists()
+            );
+        trainer.setNumGameThreads(0); // this will make the replay history not change
+
+        TrainingResult trainingResult = trainer.train(trainingMinutes * 60 * 1000, nn, replayHistory);
+        nn = trainingResult.trainingNN;
+        replayHistory = trainingResult.replayHistory.getReplayHistory();
+        System.out.println("Finished training");
+
+        if (saveNN) {
+            serializeNN(nn.getNN(), nnFilename);
+            System.out.println("Saved NN to " + nnFilename);
+        }
+        // do not save the replay history
+        return nn;
+    }
+
+    private static Consumer<CheckersValueNN> buildCheckpointer(boolean saveNN, String nnFilename) {
+        return             (CheckersValueNN checkpointNN) ->  {
+            if (saveNN) {
+                try {
+                    serializeNN(checkpointNN.getNN(), nnFilename);
+                    System.out.println("Saved NN");
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+    }
+
+    private static Consumer<CheckersValueNN> buildEvaluator() {
+        return (CheckersValueNN evalNN) ->  { evaluate(evalNN, 50, 1); };
+    }
 
     private static void evaluate(CheckersValueNN nn, final int ngames, final int nThreads) {
         final double EVALUATOR_MCTS_PRIOR_WEIGHT = 20;
-        final int mctsIterations = 400;
+        final int mctsIterations = 200;
         final int opponentMCTSIterations = 256;
         final int abPruningDepth = 6;
         CheckersPlayerEvaluator evaluator = new CheckersPlayerEvaluator(
@@ -196,7 +241,7 @@ public class CheckersRLTrainerApp {
 
     private static void serializeReplayHistory(List<TrainingExample> trainingExamples, String filename)
             throws FileNotFoundException, IOException {
-        try (ObjectOutputStream oos = new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(filename), 8*1024*1024))) {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(filename), 32*1024*1024))) {
             System.out.println("Saving replay history (do not cancel!)");
             oos.writeObject(trainingExamples);
             System.out.println(String.format("Saved replay history (%d) to ", trainingExamples.size()) + filename);

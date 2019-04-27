@@ -7,8 +7,8 @@ public class GameTree<M extends Move, G extends Game<M, G>> {
 		this.head = head;
 	}
 
-	public GameNode<M, G> addChild(GameNode<M, G> parent, G childGame) {
-		GameNode<M, G> child = new GameNode<M, G>(childGame);
+	public GameNode<M, G> addChild(GameNode<M, G> parent, G childGame, M childMove) {
+		GameNode<M, G> child = new GameNode<M, G>(childGame, childMove);
 		parent.getChildren().add(child);
 		return child;
 	}

@@ -20,7 +20,7 @@ public class MinimaxPlayer<M extends Move, G extends Game<M, G>> implements Game
 		isPlayer1 = theGame.isPlayer1Turn();
 
 		if(gameTree == null) {
-			gameTree = new GameTree<M, G>(new GameNode<M, G>((G) theGame));
+			gameTree = new GameTree<M, G>(new GameNode<M, G>((G) theGame, null));
 		}
 		else {
 			// Find the correct branch of the existing game tree and reuse it
@@ -103,7 +103,7 @@ public class MinimaxPlayer<M extends Move, G extends Game<M, G>> implements Game
 				throw new IllegalArgumentException();
 				//continue;
 			}
-			addedNode = new GameNode<M, G>(tempGame);
+			addedNode = new GameNode<M, G>(tempGame, m);
 			gameNode.addChild(addedNode);
 //			addedNode.setScore(minimaxValue(addedNode));
 			setMinimaxValue(addedNode);

@@ -5,7 +5,7 @@ import java.io.Serializable;
 /**
  * ADAM optimizer for a neural network weight matrix. Does ADAM SGD updates. Not aware of biases.
  */
-public final class ADAMOptimizerMatrix implements Serializable {
+public final class ADAMOptimizerMatrix implements Serializable, OptimizerMatrix {
     private static final long serialVersionUID = 1L;
     private final double[][] adamM;
     private final double[][] adamV;
@@ -31,7 +31,7 @@ public final class ADAMOptimizerMatrix implements Serializable {
         return new ADAMOptimizerMatrix(adamM.length, adamM[0].length, learningRate, lrTimesL2 / learningRate);
     }
 
-    public final void update(final double[][] weights, int row, int col, double gradient, boolean applyRegularization) {
+    public final void update(final double[][] weights, int row, int col, double gradient, final boolean applyRegularization) {
         // ADAM update
         adamM[row][col] = beta1 * adamM[row][col] + (1.0 - beta1) * gradient;
         adamV[row][col] = beta2 * adamV[row][col] + (1.0 - beta2) * gradient * gradient;
@@ -47,18 +47,6 @@ public final class ADAMOptimizerMatrix implements Serializable {
             weight -= weight * lrTimesL2;
         }
         weights[row][col] = weight;
-    }
-
-    public final double getUpdate(int row, int col, double gradient) {
-        // ADAM update
-        adamM[row][col] = beta1 * adamM[row][col] + (1.0 - beta1) * gradient;
-        adamV[row][col] = beta2 * adamV[row][col] + (1.0 - beta2) * gradient * gradient;
-
-        double adjustedM = adamM[row][col] * beta1tMult;
-        double adjustedV = adamV[row][col] * beta2tMult;
-
-        double update = learningRate * (adjustedM / (Math.sqrt(adjustedV) + 0.00000001));
-        return update;
     }
 
     public final void incrementIteration() {

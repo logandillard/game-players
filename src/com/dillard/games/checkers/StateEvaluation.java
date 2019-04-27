@@ -6,16 +6,14 @@ import com.dillard.games.checkers.MCTS.MCTSMove;
 
 public final class StateEvaluation<M extends MCTSMove> {
     public final double stateValue;
-//    public final double[] fullMoveProbs;
     public final List<M> moves;
     public final List<Double> moveProbs;
 
-    public StateEvaluation(double stateValue, // double[] fullMoveProbs,
+    public StateEvaluation(double stateValue,
             List<M> moves, List<Double> scores) {
         this.stateValue = stateValue;
         this.moves = moves;
         this.moveProbs = scores;
-//        this.fullMoveProbs = fullMoveProbs;
     }
 
     @Override

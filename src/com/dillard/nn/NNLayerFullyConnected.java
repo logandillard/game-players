@@ -9,10 +9,11 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
     private final int numOutputs;
     private final double[][] weights;
     private final double[][] accumulatedGradients;
+    private int accumulatedGradientCount = 0;
     private double[] inputValues;
     private double[] outputValues;
     private final ActivationFunction activationFunction;
-    private final ADAMOptimizerMatrix optimizer;
+    private final OptimizerMatrix optimizer;
 
     public NNLayerFullyConnected(int numInputs, int numOutputs,
             ActivationFunction activationFunction,
@@ -23,8 +24,8 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
         this.activationFunction = activationFunction;
         weights = new double[numInputs + 1][numOutputs]; // + 1 for biases
         accumulatedGradients = new double[numInputs + 1][numOutputs]; // + 1 for biases
-        optimizer = new ADAMOptimizerMatrix(numInputs + 1, numOutputs, // + 1 for biases
-                learningRate, l2Regularization);
+        optimizer = new MomentumOptimizerMatrix(numInputs + 1, numOutputs, // + 1 for biases
+                learningRate, l2Regularization, 0.9 /* momentum */);
         outputValues = new double[numOutputs];
 
         // initialize weights randomly
@@ -40,7 +41,7 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
     }
 
     public NNLayerFullyConnected(int numInputs, int numOutputs, double[][] weights, double[] inputValues,
-            double[] outputValues, ActivationFunction activationFunction, ADAMOptimizerMatrix optimizer) {
+            double[] outputValues, ActivationFunction activationFunction, OptimizerMatrix optimizer) {
         this.numInputs = numInputs;
         this.numOutputs = numOutputs;
         this.weights = weights;
@@ -108,7 +109,6 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
             for (int output=0; output<numOutputs; output++) {
                 double gradient = inputValues[input] * outputDerivative[output];
 
-                // ADAM update
                 optimizer.update(weights, input, output, gradient, true);
 
                 double currentWeight = weights[input][output]; // weights[input][output];
@@ -119,7 +119,6 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
 
         // biases
         for (int output=0; output<numOutputs; output++) {
-            // ADAM update
             optimizer.update(weights, numInputs, output, outputDerivative[output], false); // no regularization on biases
         }
 
@@ -142,7 +141,7 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
             for (int output=0; output<numOutputs; output++) {
                 double gradient = inputValues[input] * outputDerivative[output];
 
-                accumulatedGradients[input][output] += optimizer.getUpdate(input, output, gradient);
+                accumulatedGradients[input][output] += gradient;
 
                 double currentWeight = weights[input][output]; // weights[input][output];
                 // sum the derivative of the output with respect to the input for a previous layer to use
@@ -152,27 +151,24 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
 
         // biases
         for (int output=0; output<numOutputs; output++) {
-            // ADAM update
-            accumulatedGradients[numInputs][output] += optimizer.getUpdate(numInputs, output, outputDerivative[output]);
+            accumulatedGradients[numInputs][output] += outputDerivative[output];
         }
+
+        accumulatedGradientCount++;
 
         return inputNodeGradient;
     }
 
     @Override
     public void applyAccumulatedGradients() {
-        double lrTimesL2 = optimizer.getLrTimesL2();
         for (int input=0; input<numInputs; input++) {
             for (int output=0; output<numOutputs; output++) {
-                double weight = weights[input][output];
-                weight += accumulatedGradients[input][output];
-                weight -= weight * lrTimesL2;
-                weights[input][output] = weight;
+                optimizer.update(weights, input, output, accumulatedGradients[input][output] / accumulatedGradientCount, true);
             }
         }
         // biases
         for (int output=0; output<numOutputs; output++) {
-            weights[numInputs][output] += accumulatedGradients[numInputs][output];
+            optimizer.update(weights, numInputs, output, accumulatedGradients[numInputs][output] / accumulatedGradientCount, false);
         }
 
         optimizer.incrementIteration();
@@ -181,6 +177,7 @@ public class NNLayerFullyConnected implements NNLayer, Serializable {
         for (int i=0; i<accumulatedGradients.length; i++) {
             Arrays.fill(accumulatedGradients[i], 0);
         }
+        accumulatedGradientCount = 0;
     }
 
     @Override

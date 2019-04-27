@@ -20,12 +20,13 @@ Game<CheckersMove, CheckersGame>, MCTSGame<CheckersMove, CheckersGame> {
 
 	private CheckersBoard board;
 	private boolean player1Turn;
+	private List<CheckersMove> availableMoves = null;
 	private int moveCount = 0;
 	private int numMovesNoJumpsOrCrowns = 0;
 	private Map<String, Integer> boardStateCounts = new HashMap<>();
 	private int maxBoardStateCount = 1;
 	// NOTE player 1 == white
-	private final PieceColor player1Color = PieceColor.WHITE;
+	private static final PieceColor PLAYER_1_COLOR = PieceColor.WHITE;
 
 	public CheckersGame() {
 		this(true);
@@ -34,28 +35,40 @@ Game<CheckersMove, CheckersGame>, MCTSGame<CheckersMove, CheckersGame> {
         board = new CheckersBoard();
         player1Turn = isPlayer1Turn;
     }
-	private CheckersGame(CheckersBoard board, boolean player1Turn, int numMovesNoJumpsOrCrowns,
-	        Map<String, Integer> boardStateCounts, int maxBoardStateCount) {
+	private CheckersGame(CheckersBoard board, boolean player1Turn,
+	        List<CheckersMove> availableMoves, int numMovesNoJumpsOrCrowns,
+	        Map<String, Integer> boardStateCounts, int maxBoardStateCount, int moveCount) {
 		this.board = board;
 		this.player1Turn = player1Turn;
+		this.availableMoves = availableMoves;
 		this.numMovesNoJumpsOrCrowns = numMovesNoJumpsOrCrowns;
 		this.boardStateCounts = boardStateCounts;
 		this.maxBoardStateCount = maxBoardStateCount;
+		this.moveCount = moveCount;
 	}
 
 	@Override
     public CheckersGame clone() {
-		return new CheckersGame(board.clone(), player1Turn, numMovesNoJumpsOrCrowns, new HashMap<>(boardStateCounts), maxBoardStateCount);
+		return new CheckersGame(
+		        board.clone(),
+		        player1Turn,
+		        availableMoves == null ? null : new ArrayList<>(availableMoves),
+		        numMovesNoJumpsOrCrowns,
+		        new HashMap<>(boardStateCounts),
+		        maxBoardStateCount,
+		        moveCount);
 	}
 
 	public CheckersBoard cloneBoard() {
 	    return board.clone();
 	}
 
-	private List<CheckersMove> availableMoves = null;
-
 	public void move(CheckersMove move) {
 		Piece piece = board.getPiece(move.from);
+		if (piece == null) {
+		    throw new InvalidMoveException("No piece exists in this location");
+		}
+
 		if (!isCurrentPlayerColor(piece.getColor())) {
 			throw new InvalidMoveException("Wrong player's piece");
 		}
@@ -226,7 +239,7 @@ Game<CheckersMove, CheckersGame>, MCTSGame<CheckersMove, CheckersGame> {
 
 	private void addMoves(List<CheckersMove> moves, List<CheckersMove> jumpMoves, int r, int c, Piece piece,
 			boolean onlyJump) {
-		int signForward = piece.color == player1Color ? 1 : -1;
+		int signForward = piece.color == PLAYER_1_COLOR ? 1 : -1;
 
 		// Forward moves
 		addMovesInRow(signForward, moves, jumpMoves, r, c, piece, onlyJump);

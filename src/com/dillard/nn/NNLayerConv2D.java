@@ -22,6 +22,7 @@ public class NNLayerConv2D implements NNLayer, Serializable {
     private final double paddingValue;
     private double[][] weights;
     private double[][] accumulatedGradients;
+    private int accumulatedGradientCount = 0;
     private double[] inputValues;
     private double[] outputValues;
     private final ActivationFunction activationFunction;
@@ -260,7 +261,7 @@ public class NNLayerConv2D implements NNLayer, Serializable {
                                     }
                                     double gradient = outputDerivative * inputCellValue;
                                     int weightCol = layer*width*height + filterRow*width + filterCol;
-                                    accumulatedGradients[filter][weightCol] += optimizer.getUpdate(filter, weightCol, gradient);
+                                    accumulatedGradients[filter][weightCol] += gradient;
 
                                     // pass on the gradient to the next layer only if this is not padding
                                     if (isNotPadding) {
@@ -274,37 +275,36 @@ public class NNLayerConv2D implements NNLayer, Serializable {
 
                         // biases
                         int col = depth*width*height;
-                        accumulatedGradients[filter][col] += optimizer.getUpdate(filter, col, outputDerivative);
+                        accumulatedGradients[filter][col] += outputDerivative;
                     }
                 }
             }
 
         }
 
+        accumulatedGradientCount++;
+
         return inputNodeGradient;
     }
 
     @Override
     public void applyAccumulatedGradients() {
-        double lrTimesL2 = optimizer.getLrTimesL2();
-
         for (int filter=0; filter<numFilters; filter++) {
             for (int filterRow = 0; filterRow<height; filterRow++) {
                 for (int filterCol = 0; filterCol<width; filterCol++) {
                     for (int layer=0; layer<depth; layer++) {
                         int weightCol = layer*width*height + filterRow*width + filterCol;
 
-                        double weight = weights[filter][weightCol];
-                        weight += accumulatedGradients[filter][weightCol];
-                        weight -= weight * lrTimesL2;
-                        weights[filter][weightCol] = weight;
+                        optimizer.update(weights, filter, weightCol,
+                                accumulatedGradients[filter][weightCol] / accumulatedGradientCount, true);
                     }
                 }
             }
 
             // biases
             int col = depth*width*height;
-            weights[filter][col] += accumulatedGradients[filter][col];
+            optimizer.update(weights, filter, col,
+                    accumulatedGradients[filter][col] / accumulatedGradientCount, true);
         }
 
         optimizer.incrementIteration();
@@ -313,6 +313,7 @@ public class NNLayerConv2D implements NNLayer, Serializable {
         for (int i=0; i<accumulatedGradients.length; i++) {
             Arrays.fill(accumulatedGradients[i], 0);
         }
+        accumulatedGradientCount = 0;
 
     }
 

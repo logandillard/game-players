@@ -29,17 +29,22 @@ public class CheckersValueNN implements Serializable {
         double learningRate = 0.0001, l2 = 0.0001;
         WeightInitializer initializer = new WeightInitializerGaussianFixedVariance(1.0/NUM_INPUTS);
 
+        int nHidden = 32;
         NNLayer[] layers = new NNLayer[] {
-            new NNLayerFullyConnected(NUM_INPUTS, 100, new ActivationFunctionReLU(), initializer, learningRate, l2),
+            new NNLayerFullyConnected(NUM_INPUTS, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
             new NNLayerResidual(new NNLayer[] {
-                    new NNLayerFullyConnected(100, 100, new ActivationFunctionReLU(), initializer, learningRate, l2),
-                    new NNLayerFullyConnected(100, 100, new ActivationFunctionReLU(), initializer, learningRate, l2),
+                    new NNLayerFullyConnected(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
+                    new NNLayerFullyConnected(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
             }),
-//            new NNLayerResidual(new NNLayer[] {
-//                    new NNLayerFullyConnected(100, 100, new ActivationFunctionReLU(), initializer, learningRate, l2),
-//                    new NNLayerFullyConnected(100, 100, new ActivationFunctionReLU(), initializer, learningRate, l2),
-//            }),
-            new NNLayerFullyConnected(100, NUM_OUTPUTS, new ActivationFunctionLinear(), initializer, learningRate, l2)
+            new NNLayerResidual(new NNLayer[] {
+                    new NNLayerFullyConnected(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
+                    new NNLayerFullyConnected(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
+            }),
+            new NNLayerResidual(new NNLayer[] {
+                    new NNLayerFullyConnected(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
+                    new NNLayerFullyConnected(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
+            }),
+            new NNLayerFullyConnected(nHidden, NUM_OUTPUTS, new ActivationFunctionLinear(), initializer, learningRate, l2)
         };
         LayeredNN nn =  new LayeredNN(layers);
         return new CheckersValueNN(nn);
@@ -232,12 +237,12 @@ public class CheckersValueNN implements Serializable {
                     errorGradients[index] = (scoredMove.score - softmaxOutput) * te.importanceWeight;
                 }
             }
-//            nn.accumulateGradients(errorGradients);
-            nn.backprop(errorGradients);
+            nn.accumulateGradients(errorGradients);
+//            nn.backprop(errorGradients);
 
-            if (instanceError > 10) {
-                String breakpoint= "";
-            }
+//            if (instanceError > 10) {
+//                String breakpoint= "";
+//            }
 
             errorSum += instanceError;
 
@@ -260,7 +265,7 @@ public class CheckersValueNN implements Serializable {
 //            }
 
         }
-//        nn.applyAccumulatedGradients();
+        nn.applyAccumulatedGradients();
 
 //        double errorSumAfter = 0;
 //        for (var te : miniBatch) {
@@ -270,7 +275,8 @@ public class CheckersValueNN implements Serializable {
 //                errorSumBefore/miniBatch.size(),
 //                errorSumAfter/miniBatch.size(),
 //                errorSumAfter/errorSumBefore));
-        System.out.println(String.format("%.3f", errorSum / miniBatch.size()));
+
+//        System.out.println(String.format("%.3f", errorSum / miniBatch.size()));
         return errorSum;
     }
 

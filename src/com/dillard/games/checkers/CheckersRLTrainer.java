@@ -5,17 +5,18 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-
-import com.dillard.games.checkers.MCTS.MCTSResult;
+import java.util.function.Supplier;
 
 public class CheckersRLTrainer {
-    private static final int replayHistorySize = 256 * 1024; // TODO AlphaGoZero uses 500k
+    private static final int replayHistorySize = 4 * 1024 * 1024; // TODO AlphaGoZero uses 500k games! That's about 40MM positions
     private static final long NN_CHECKPOINT_INTERVAL_MS = 1000 * 60 * 5; // 5 minutes
-    private double explorationFactor = 1.0; // TODO start at 1.0, anneal down to 0
+    private static final int INITIAL_TRAINING_MIN_POSITIONS = 128 * 1024;
     private Random random;
     private CheckersValueNN trainingNN;
-    private List<TrainingExample> replayHistory = null;
-    private PrioritizedSampler prioritizedSampler;
+    private ReplayHistory replayHistory;
+    final int miniBatchSize = 32;
+    private List<CheckersValueNN> oldNNs = new ArrayList<>();
+    private final int MAX_NUM_OLD_NNS = 50;
     private int numGameThreads = 2;
     private volatile boolean continueTraining = true;
     private long quittingTime = 0;
@@ -26,36 +27,58 @@ public class CheckersRLTrainer {
     private int miniBatchesTrained = 0;
     private Consumer<CheckersValueNN> nnCheckpointer;
     private Consumer<CheckersValueNN> nnEvaluator;
+    private Supplier<Boolean> quitOverrider;
+    private SelfPlayDataGenerator dataGenerator;
 
-    public CheckersRLTrainer(Random random, Consumer<CheckersValueNN> nnCheckpointer, Consumer<CheckersValueNN> nnEvaluator) {
+    public CheckersRLTrainer(
+            Random random,
+            Consumer<CheckersValueNN> nnCheckpointer,
+            Consumer<CheckersValueNN> nnEvaluator,
+            Supplier<Boolean> quitOverrider) {
         this.random = random;
         this.nnCheckpointer = nnCheckpointer;
         this.nnEvaluator = nnEvaluator;
-        prioritizedSampler = new PrioritizedSampler(random);
+        this.quitOverrider = quitOverrider;
+        dataGenerator = new SelfPlayDataGenerator(random);
     }
 
     public TrainingResult train(long durationMs, CheckersValueNN nn, List<TrainingExample> history) {
-        this.replayHistory = history;
-        if (this.replayHistory == null) {
-            this.replayHistory = new ArrayList<>();
-        }
-        prioritizedSampler.addAll(replayHistory);
+        this.replayHistory = new ReplayHistory(random, replayHistorySize, history);
 
         trainingNN = nn;
         if (trainingNN == null) {
             trainingNN = CheckersValueNN.build();
         }
 
-        if (durationMs <= 0) {
-            return new TrainingResult(trainingNN, replayHistory);
-        }
-
         quittingTime = System.currentTimeMillis() + durationMs;
+
+//        // Initial produce initial training data
+//        if (replayHistory.size() < INITIAL_TRAINING_MIN_POSITIONS) {
+//            System.out.println(String.format("All threads producing training data until %d positions", INITIAL_TRAINING_MIN_POSITIONS));
+//            List<Thread> initialGameThreads = new ArrayList<>();
+//            for (int i=0; i<numGameThreads + 2; i++) {
+//                Thread t = new Thread(() -> {
+//                    playGamesForInitialTrainingData(INITIAL_TRAINING_MIN_POSITIONS);
+//                });
+//                initialGameThreads.add(t);
+//                t.start();
+//            }
+//            // wait for our game threads to finish
+//            for (int i=0; i<initialGameThreads.size(); i++) {
+//                try {
+//                    initialGameThreads.get(i).join();
+//                } catch (InterruptedException e) {
+//                    throw new RuntimeException(e);
+//                }
+//            }
+//            System.out.println("Initial position requirement reached");
+//        }
 
         // Start our game threads
         List<Thread> gameThreads = new ArrayList<>();
         for (int i=0; i<numGameThreads; i++) {
             Thread t = new Thread(() -> {
+//               playGamesForTrainingDataSeparateOpponent();
                playGamesForTrainingData();
             });
             gameThreads.add(t);
@@ -72,12 +95,23 @@ public class CheckersRLTrainer {
         Thread evaluationThread = new Thread(() -> {
             while (continueTraining) {
                 nnEvaluator.accept(trainingNN.cloneWeights());
+//                evaluateAndUpdateBest();
             }
         });
         evaluationThread.start();
 
+        // wait for quitting time
+        try {
+            while (System.currentTimeMillis() < quittingTime && !quitOverrider.get()) {
+                Thread.sleep(Math.min(10000, quittingTime - System.currentTimeMillis()));
+            }
+        } catch (InterruptedException ie) {
+            ie.printStackTrace();
+        }
+        continueTraining = false;
+
         // wait for our game threads to finish
-        for (int i=0; i<numGameThreads; i++) {
+        for (int i=0; i<gameThreads.size(); i++) {
             try {
                 gameThreads.get(i).join();
             } catch (InterruptedException e) {
@@ -85,8 +119,7 @@ public class CheckersRLTrainer {
             }
         }
 
-        // Stop our training thread
-        continueTraining = false;
+        // wait for our training thread to finish
         try {
             trainingThread.join();
             evaluationThread.join();
@@ -100,37 +133,173 @@ public class CheckersRLTrainer {
         return new TrainingResult(trainingNN, replayHistory);
     }
 
+//    final double MAX_ERROR_VALUE = 3;
+//    final int NUM_MCTS_ITERS = 100;
+//    final double MCTS_PRIOR_WEIGHT = 20.0; // higher values the priors more vs. the state values
+//    private final double SCORE_THRESHOLD_FOR_BEST_NN_UPDATE = 0.3;
+//    private void evaluateAndUpdateBest() {
+//        CheckersValueNN candidateNN = trainingNN.clone();
+//
+//        CheckersPlayerEvaluator evaluator = new CheckersPlayerEvaluator(
+//                MCTS_PRIOR_WEIGHT, NUM_MCTS_ITERS, NUM_MCTS_ITERS, 1, false, false);
+//        EvaluationResult result = evaluator.evaluate(
+//                new NNCheckersPlayer(candidateNN),
+//                new NNCheckersPlayer(bestNN),
+//                100,
+//                new Random(432));
+//
+//        System.out.println(String.format(
+//                "Evaluation vs previous best: %s",
+//                result.toString()));
+//
+//        if (result.getScore() > SCORE_THRESHOLD_FOR_BEST_NN_UPDATE) {
+//            System.out.println("Updating best nn");
+//            if (nnCheckpointer != null) {
+//                try {
+//                    nnCheckpointer.accept(candidateNN);
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                }
+//            }
+//            bestNN = candidateNN;
+//        }
+//    }
+
     public static final class TrainingResult {
         public CheckersValueNN trainingNN;
-        public List<TrainingExample> replayHistory = null;
-        public TrainingResult(CheckersValueNN trainingNN, List<TrainingExample> replayHistory) {
+        public ReplayHistory replayHistory = null;
+        public TrainingResult(CheckersValueNN trainingNN, ReplayHistory replayHistory) {
             this.trainingNN = trainingNN;
             this.replayHistory = replayHistory;
         }
     }
 
     private void playGamesForTrainingData() {
+        long reportIntervalMs = 30000;
         CheckersValueNN playerNN = trainingNN.cloneWeights();
         lastProgressTimestamp = System.currentTimeMillis();
         int gamesPlayedSinceCheckpointNN = 0;
-        while (System.currentTimeMillis() < quittingTime) {
+        while (System.currentTimeMillis() < quittingTime && continueTraining) {
 
-            GameResult result = playOneGameForTrainingData(playerNN);
+            GameResult result = dataGenerator.playOneGameForTrainingData(playerNN);
 //            System.out.println(String.format("%.0f (%.6f) Player1 start? %b",
 //                    result.finalScore, result.error, result.startingPlayer1Turn));
             gamesPlayedSinceLastProgress.incrementAndGet();
 
+            replayHistory.add(result.newTrainingExamples);
             synchronized(this) { // so that this only runs once at a time
-                replayHistory.addAll(result.newTrainingExamples);
-                // Truncate replay history (global)
-                if (replayHistory.size() > replayHistorySize) {
-                    replayHistory = new ArrayList<>(replayHistory.subList(replayHistorySize / 10, replayHistory.size()));
-                    prioritizedSampler = new PrioritizedSampler(random);
-                    prioritizedSampler.addAll(replayHistory);
-                } else {
-                    prioritizedSampler.addAll(result.newTrainingExamples);
-                }
+                totalGamesPlayed++;
+                totalPositionsCreated += result.newTrainingExamples.size();
 
+                // Report progress (global)
+                if (System.currentTimeMillis() - lastProgressTimestamp >= reportIntervalMs) {
+                    long time = System.currentTimeMillis();
+                    double gamesPerSecond = gamesPlayedSinceLastProgress.get() * 1000 / (double)(time - lastProgressTimestamp);
+                    lastProgressTimestamp += reportIntervalMs;
+                    gamesPlayedSinceLastProgress.set(0);
+                    long msRemaining = quittingTime - lastProgressTimestamp;
+                    System.out.println(String.format("%.2f games/sec. total %d (%d). trained %d. time remaining %s",
+                            gamesPerSecond, totalGamesPlayed, totalPositionsCreated,
+                            miniBatchesTrained * miniBatchSize,
+                            String.format("%02d:%02d", msRemaining / 60000, (msRemaining % 60000) / 1000)));
+
+                    if (quitOverrider.get()) {
+                        continueTraining = false;
+                    }
+                }
+            }
+
+            // Clone the training NN
+            // AlphaGoZero checkpoints every 1k training steps (4MM positions trained)
+            // But a player plays 25k games for training data before updating to a new player
+            gamesPlayedSinceCheckpointNN++;
+            if (gamesPlayedSinceCheckpointNN >= 1000) {
+                playerNN = trainingNN.cloneWeights();
+                gamesPlayedSinceCheckpointNN = 0;
+            }
+        }
+    }
+
+    private void playGamesForInitialTrainingData(int thresholdPositions) {
+        long reportIntervalMs = 30000;
+        CheckersValueNN playerNN = trainingNN.cloneWeights();
+        lastProgressTimestamp = System.currentTimeMillis();
+        while (replayHistory.size() < thresholdPositions && continueTraining) {
+
+            GameResult result = dataGenerator.playOneGameForTrainingData(playerNN);
+//            System.out.println(String.format("%.0f (%.6f) Player1 start? %b",
+//                    result.finalScore, result.error, result.startingPlayer1Turn));
+            gamesPlayedSinceLastProgress.incrementAndGet();
+
+            replayHistory.add(result.newTrainingExamples);
+            synchronized(this) { // so that this only runs once at a time
+                totalGamesPlayed++;
+                totalPositionsCreated += result.newTrainingExamples.size();
+
+                // Report progress (global)
+                if (System.currentTimeMillis() - lastProgressTimestamp >= reportIntervalMs) {
+                    long time = System.currentTimeMillis();
+                    double gamesPerSecond = gamesPlayedSinceLastProgress.get() * 1000 / (double)(time - lastProgressTimestamp);
+                    lastProgressTimestamp = time;
+                    gamesPlayedSinceLastProgress.set(0);
+                    long msRemaining = quittingTime - lastProgressTimestamp;
+                    System.out.println(String.format("%.2f games/sec. total %d (%d). trained %d. time remaining %s",
+                            gamesPerSecond, totalGamesPlayed, totalPositionsCreated,
+                            miniBatchesTrained * miniBatchSize,
+                            String.format("%02d:%02d", msRemaining / 60000, Math.round((msRemaining % 60000) / 1000.0))));
+
+                    if (quitOverrider.get()) {
+                        continueTraining = false;
+                    }
+                }
+            }
+        }
+    }
+
+    private void playGamesForTrainingDataSeparateOpponent() {
+        CheckersValueNN playerNN = trainingNN.cloneWeights();
+        CheckersValueNN opponentNN = null;
+        lastProgressTimestamp = System.currentTimeMillis();
+        int gamesPlayedSinceCheckpointNN = 0;
+
+//        LinkedList<Double> recentScores = new LinkedList<>();
+        EvaluationResult evaluationResult = new EvaluationResult();
+//        final int MAX_RECENT_SCORES_SIZE = 100;
+//        final double MIN_SCORE_FOR_OPPONENT_UPDATE = 0.3;
+        while (System.currentTimeMillis() < quittingTime && continueTraining) {
+
+            // choose opponent
+            if (oldNNs.isEmpty()) {
+                opponentNN = playerNN.cloneWeights();
+            } else {
+                opponentNN = oldNNs.get(random.nextInt(oldNNs.size()));
+            }
+
+            GameResult result = dataGenerator.playOneGameForTrainingData(playerNN, opponentNN);
+            evaluationResult.addResult(result.finalScore);
+            if (evaluationResult.numGames >= 50) {
+                System.out.println(String.format("%s (%d)", evaluationResult.toString(), oldNNs.size()));
+                evaluationResult = new EvaluationResult();
+            }
+//            recentScores.add(result.finalScore);
+//            if (recentScores.size() > MAX_RECENT_SCORES_SIZE) {
+//                double removedScore = recentScores.pop();
+//                recentScoreSum -= removedScore;
+//
+//                double meanRecentScore = recentScoreSum / recentScores.size();
+//                if (meanRecentScore >= MIN_SCORE_FOR_OPPONENT_UPDATE) {
+//                    // TODO opponent update
+//                    opponentNN = playerNN.cloneWeights();
+//                    playerNN = trainingNN.cloneWeights();
+//                    gamesPlayedSinceCheckpointNN = 0;
+//                }
+//            }
+//            System.out.println(String.format("%.0f Player1 start? %b",
+//                    result.finalScore, result.startingPlayer1Turn));
+            gamesPlayedSinceLastProgress.incrementAndGet();
+
+            replayHistory.add(result.newTrainingExamples);
+            synchronized(this) { // so that this only runs once at a time
                 totalGamesPlayed++;
                 totalPositionsCreated += result.newTrainingExamples.size();
                 // Report progress (global)
@@ -150,88 +319,16 @@ public class CheckersRLTrainer {
             // Clone the training NN
             // AlphaGoZero checkpoints every 1k training steps (4MM positions trained)
             gamesPlayedSinceCheckpointNN++;
-            if (gamesPlayedSinceCheckpointNN >= 10000) { // TODO this is too high, just for a test
+            if (gamesPlayedSinceCheckpointNN >= 50) {
                 playerNN = trainingNN.cloneWeights();
                 gamesPlayedSinceCheckpointNN = 0;
             }
         }
     }
 
-    private GameResult playOneGameForTrainingData(CheckersValueNN nn) {
-        // Random starting player
-        CheckersGame game = new CheckersGame(Math.random() < 0.5);
-        boolean startingPlayer1Turn = game.isPlayer1Turn();
-        NNCheckersPlayer player = new NNCheckersPlayer(nn);
-
-        List<TrainingExample> trainingExamples = new ArrayList<>();
-        double[] lastStateValues = new double[2];
-        double sumError = 0;
-
-        var mcts = new MCTS<CheckersMove, CheckersGame, NNCheckersPlayer>(
-                player, MCTS_PRIOR_WEIGHT, explorationFactor, random);
-//        var opponentMCTS = new MCTS<CheckersMove, CheckersGame, NNCheckersPlayer>(
-//                player, MCTS_PRIOR_WEIGHT, explorationFactor, random);
-
-        while (!game.isTerminated()) {
-            // Evaluate state for loss
-            StateEvaluation<CheckersMove> networkResult = player.evaluateState(game);
-
-            int stateValueIdx = game.isPlayer1Turn() ? 0 : 1;
-            sumError += Math.abs(lastStateValues[stateValueIdx] - networkResult.stateValue);
-            lastStateValues[stateValueIdx] = networkResult.stateValue;
-
-            // MCTS search
-            // TODO is this a good idea?
-            // if either player has < N pieces left, stop exploration
-//            if (game.getMinPlayerPieceCount() < 2) {
-//                mcts.setExplorationFactor(0);
-//            }
-            MCTSResult<CheckersMove> result = mcts.search(game, NUM_MCTS_ITERS, true);
-
-            // Store training example
-            trainingExamples.add(new TrainingExample(
-                    game.cloneBoard(),
-                    game.isPlayer1Turn(),
-                    0, // final game value - will update this later
-                    result.scoredMoves,
-                    MAX_ERROR_VALUE,
-                    1.0 // importance weight
-                    ));
-
-            // take move
-            game.move(result.chosenMove);
-
-            // update gametree in MCTS
-            mcts.advanceToMove(result.chosenMove);
-        }
-
-        double p1Score = game.getFinalScore(true);
-        // upate all final game values
-        for (var te : trainingExamples) {
-            te.finalGameValue = te.isPlayer1 ? p1Score : -p1Score;
-        }
-
-        return new GameResult(trainingExamples, sumError, p1Score, startingPlayer1Turn);
-    }
-
-    private static final class GameResult {
-        List<TrainingExample> newTrainingExamples;
-        double error;
-        double finalScore;
-        boolean startingPlayer1Turn;
-
-        public GameResult(List<TrainingExample> newTrainingExamples, double error,
-                double finalScore, boolean startingPlayer1Turn) {
-            this.newTrainingExamples = newTrainingExamples;
-            this.error = error;
-            this.finalScore = finalScore;
-            this.startingPlayer1Turn = startingPlayer1Turn;
-        }
-    }
-
     private void trainFromExamples() {
         // Wait until we have some training examples
-        while (continueTraining && prioritizedSampler.getNodeCount() == 0) {
+        while (continueTraining && replayHistory.isEmpty()) {
             try {
                 Thread.sleep(10);
             } catch (InterruptedException e) {
@@ -240,22 +337,28 @@ public class CheckersRLTrainer {
         }
 
         long lastCheckpointTime = System.currentTimeMillis();
-        while (continueTraining) {
+        while (System.currentTimeMillis() < quittingTime && continueTraining) {
             // train
-            trainMiniBatch(trainingNN, prioritizedSampler);
+            trainMiniBatch(trainingNN);
             miniBatchesTrained++;
 
             // Checkpoint the NN (save to disk) occasionally
-            if (miniBatchesTrained % 100 == 0) {
-                if (System.currentTimeMillis() - lastCheckpointTime > NN_CHECKPOINT_INTERVAL_MS) {
-                    lastCheckpointTime = System.currentTimeMillis();
-                    if (nnCheckpointer != null) {
-                        try {
-                            nnCheckpointer.accept(trainingNN);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
+            if (miniBatchesTrained % 10 == 0 &&
+                System.currentTimeMillis() - lastCheckpointTime > NN_CHECKPOINT_INTERVAL_MS) {
+                lastCheckpointTime = System.currentTimeMillis();
+                if (nnCheckpointer != null) {
+                    try {
+                        nnCheckpointer.accept(trainingNN);
+                    } catch (Exception e) {
+                        e.printStackTrace();
                     }
+                }
+            }
+
+            if (miniBatchesTrained % (10 * 1024 / miniBatchSize) == 0) {
+                oldNNs.add(trainingNN.cloneWeights());
+                if (oldNNs.size() > MAX_NUM_OLD_NNS) {
+                    oldNNs = oldNNs.subList(oldNNs.size() - MAX_NUM_OLD_NNS, oldNNs.size());
                 }
             }
         }
@@ -263,70 +366,10 @@ public class CheckersRLTrainer {
                 miniBatchesTrained, miniBatchesTrained * miniBatchSize));
     }
 
-//    final int maxOver = 10;
-    final int miniBatchSize = 32;
-    final double MAX_ERROR_VALUE = 3;
-    final int NUM_MCTS_ITERS = 400;
-    final double MCTS_PRIOR_WEIGHT = 20.0; // higher values the priors more vs. the state values
-    private final double priorityExponent = 0.5;
-    private final double importanceSamplingBiasExponent = 0.5; // anneal from 0.4 to 1.0
-    private final boolean doPrioritySampling = false;
-
-    private void trainMiniBatch(CheckersValueNN nn, PrioritizedSampler prioritizedSampler) {
-        List<TrainingExample> miniBatch = new ArrayList<>();
-
-        if (doPrioritySampling) {
-            double totalPrioritySum = prioritizedSampler.getPrioritySum();
-            int totalCount = prioritizedSampler.getNodeCount();
-            if (totalCount == 0) {
-                // this at least won't work for the importance weight below, where we try to divide by this
-                throw new RuntimeException("Trying to sample from prioritized sampler with 0 nodes!");
-            }
-            double maxImportanceWeight = 0;
-            for (int i=0; i<miniBatchSize; i++) {
-                TrainingExample te = prioritizedSampler.sampleAndRemove();
-                te.importanceWeight = Math.pow(totalPrioritySum / (te.priority * totalCount), importanceSamplingBiasExponent);
-                if (Double.isNaN(te.importanceWeight)) {
-                    throw new RuntimeException();
-                }
-                miniBatch.add(te);
-                if (te.importanceWeight > maxImportanceWeight) {
-                    maxImportanceWeight = te.importanceWeight;
-                }
-            }
-
-            if (maxImportanceWeight == 0.0) {
-                System.out.println(miniBatch); // TODO
-                throw new RuntimeException("Max importance weight is 0!");
-            }
-
-            // Scale weights by 1/maxImportanceWeight so that they only scale down for stability
-            for (var te : miniBatch) {
-                te.importanceWeight = te.importanceWeight / maxImportanceWeight;
-            }
-        } else {
-            // Uniform random sampling
-            for (int i=0; i<miniBatchSize; i++) {
-                int idx = random.nextInt(replayHistory.size());
-                var te = replayHistory.get(idx);
-                te.importanceWeight = 1.0;
-                miniBatch.add(te);
-            }
-        }
-
+    private void trainMiniBatch(CheckersValueNN nn) {
+        List<TrainingExample> miniBatch = replayHistory.sample(miniBatchSize);
         nn.trainMiniBatch(miniBatch);
-
-        if (doPrioritySampling) {
-            // re-score examples in miniBatch
-            for (var te : miniBatch) {
-                te.priority = Math.pow(Math.abs(nn.error(te)), priorityExponent);
-            }
-        }
-        prioritizedSampler.addAll(miniBatch);
-    }
-
-    public void setExplorationFactor(double explorationFactor) {
-        this.explorationFactor = explorationFactor;
+        replayHistory.reweightPriority(miniBatch, (TrainingExample te) -> nn.error(te));
     }
 
     public int getNumGameThreads() {
@@ -334,8 +377,8 @@ public class CheckersRLTrainer {
     }
 
     public void setNumGameThreads(int numGameThreads) {
-        if (numGameThreads < 1) {
-            throw new RuntimeException("Num game threads must be >= 1. Got " + numGameThreads);
+        if (numGameThreads < 0) {
+            throw new RuntimeException("Num game threads must be >= 0. Got " + numGameThreads);
         }
         this.numGameThreads = numGameThreads;
     }

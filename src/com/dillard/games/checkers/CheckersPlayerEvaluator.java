@@ -6,6 +6,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import com.dillard.games.ABPruningPlayer;
 import com.dillard.games.GamePlayer;
 import com.dillard.games.checkers.MCTS.MCTSPlayer;
 import com.dillard.games.checkers.MCTS.MCTSResult;
@@ -43,8 +44,12 @@ public class CheckersPlayerEvaluator {
         ExecutorService es = Executors.newFixedThreadPool(nThreads);
         for (int i=0; i<numGames; i++) {
             es.submit(() -> {
-                double score = playOneGameEvaluation(player, opponentFactory, random);
-                result.addResult(score);
+                try {
+                    double score = playOneGameEvaluation(player, opponentFactory, random);
+                    result.addResult(score);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             });
         }
         es.shutdown();
@@ -77,7 +82,7 @@ public class CheckersPlayerEvaluator {
         }
         es.shutdown();
         try {
-            es.awaitTermination(10, TimeUnit.MINUTES);
+            es.awaitTermination(30, TimeUnit.MINUTES);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -161,12 +166,16 @@ public class CheckersPlayerEvaluator {
                 // update gametree in MCTS
                 mcts.advanceToMove(result.chosenMove);
 
+                if (opponent instanceof ABPruningPlayer<?, ?>) {
+                    ((ABPruningPlayer<CheckersMove, CheckersGame>)opponent).advanceToMove(result.chosenMove);
+                }
             } else {
-                // MCTS search
                 CheckersMove move = opponent.move(game);
-                // take move
                 game.move(move);
                 mcts.advanceToMove(move);
+                if (opponent instanceof ABPruningPlayer<?, ?>) {
+                    ((ABPruningPlayer<CheckersMove, CheckersGame>)opponent).advanceToMove(move);
+                }
             }
 
             if (printMoves) {
@@ -183,34 +192,5 @@ public class CheckersPlayerEvaluator {
         }
 
         return p1Score;
-    }
-
-    public static final class EvaluationResult {
-        public double scoreSum;
-        public int numWins;
-        public int numLosses;
-        public int numDraws;
-        public int numGames;
-
-        public synchronized void addResult(double score) {
-            numGames++;
-            scoreSum += score;
-            if (score == 0.0) {
-                numDraws++;
-            } else if (score < 0) {
-                numLosses++;
-            } else {
-                numWins++;
-            }
-        }
-
-        public double getScore() {
-            return scoreSum / numGames;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("score: %.2f wins: %d losses: %d draws: %d", getScore(), numWins, numLosses, numDraws);
-        }
     }
 }
