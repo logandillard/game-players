@@ -23,7 +23,24 @@ public class NNLayerFullyConnectedTD implements Serializable {
     private double beta2t = beta2;
     private double[][] adamM;
     private double[][] adamV;
-    private final ActivationFunction activationFunction;
+    private ActivationFunction activationFunction;
+
+    public NNLayerFullyConnectedTD(NNLayerFullyConnectedTD o) {
+        this.numInputs = o.numInputs;
+        this.numOutputs = o.numOutputs;
+        activationFunction = o.activationFunction;
+        this.weights = deepCopyDoubleMatrix(o.weights);
+        this.eligTraces = deepCopyDoubleMatrix(o.eligTraces);
+        this.learningRate = o.learningRate;
+        this.eligDecay = o.eligDecay;
+        l2Regularization = o.l2Regularization;
+        l1Regularization = o.l1Regularization;
+        beta1t = o.beta1t;
+        beta2t = o.beta2t;
+        adamM = deepCopyDoubleMatrix(o.adamM);
+        adamV = deepCopyDoubleMatrix(o.adamV);
+        outputValues = new double[numOutputs];
+    }
 
     public NNLayerFullyConnectedTD(int numInputs, int numOutputs,
             ActivationFunction activationFunction,
@@ -134,13 +151,47 @@ public class NNLayerFullyConnectedTD implements Serializable {
         for (int input=0; input<weights.length; input++) {
             for (int output=0; output<weights[input].length; output++) {
                 inputNodeErrors[input] += errors[output] * weights[input][output];
+                double weight = weights[input][output];
 
-                weights[input][output] += errors[output] * learningRate * eligTraces[input][output]
-                        + learningRate * (-weights[input][output] * l2Regularization
-                        - l1Regularization * Math.signum(weights[input][output]));
+                double update = learningRate * (
+                        errors[output] * eligTraces[input][output]
+                        - weight * l2Regularization);
+//                        - l1Regularization * Math.signum(weight));
+
+                weights[input][output] += update;
             }
         }
         return inputNodeErrors;
+    }
+
+    public void setLearningRate(double lr) {
+        this.learningRate = lr;
+    }
+
+    public void setEligDecayRate(double decay) {
+        this.eligDecay = decay;
+    }
+
+    public void setL2Regularization(double l2) {
+        this.l2Regularization = l2;
+    }
+
+    public void setL1Regularization(double l1) {
+        this.l1Regularization = l1;
+    }
+
+    public void setActivationFunction(ActivationFunction activationFunction) {
+        this.activationFunction = activationFunction;
+    }
+
+    private static double[][] deepCopyDoubleMatrix(double[][] input) {
+        if (input == null)
+            return null;
+        double[][] result = new double[input.length][];
+        for (int r = 0; r < input.length; r++) {
+            result[r] = input[r].clone();
+        }
+        return result;
     }
 
     @Override
