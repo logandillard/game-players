@@ -2,6 +2,7 @@ package com.dillard.nn;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.List;
 
 public class NNLayerConv2D implements NNLayer, Serializable {
     private static final long serialVersionUID = 1L;
@@ -25,7 +26,7 @@ public class NNLayerConv2D implements NNLayer, Serializable {
     private int accumulatedGradientCount = 0;
     private double[] inputValues;
     private double[] outputValues;
-    private final ActivationFunction activationFunction;
+    private ActivationFunction activationFunction;
     private final ADAMOptimizerMatrix optimizer;
 
     public NNLayerConv2D(int inputNumRows, int inputNumCols, int inputNumLayers,
@@ -230,7 +231,6 @@ public class NNLayerConv2D implements NNLayer, Serializable {
         return inputNodeGradient;
     }
 
-    @Override
     public double[] accumulateGradients(double[] errorGradient) {
         double[] inputNodeGradient = new double[numInputs];
 
@@ -287,7 +287,6 @@ public class NNLayerConv2D implements NNLayer, Serializable {
         return inputNodeGradient;
     }
 
-    @Override
     public void applyAccumulatedGradients() {
         for (int filter=0; filter<numFilters; filter++) {
             for (int filterRow = 0; filterRow<height; filterRow++) {
@@ -330,9 +329,28 @@ public class NNLayerConv2D implements NNLayer, Serializable {
         return numFilters;
     }
 
-
     @Override
     public void setLearningRate(double lr) {
         optimizer.setLearningRate(lr);
+    }
+
+    @Override
+    public ActivationFunction getActivationFunction() {
+        return activationFunction;
+    }
+
+    @Override
+    public void setActivationFunction(ActivationFunction activationFunction) {
+        this.activationFunction = activationFunction;
+    }
+
+    @Override
+    public List<double[]> batchActivate(List<double[]> batchInputs) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<double[]> batchBackprop(List<double[]> batchErrorGradients) {
+        throw new UnsupportedOperationException();
     }
 }

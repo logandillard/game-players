@@ -10,7 +10,7 @@ public class SelfPlayDataGenerator {
     private Random random;
     private double explorationFactor = 1.0; // TODO start at 1.0, anneal down to 0
     final double MCTS_PRIOR_WEIGHT = 20.0; // higher values the priors more vs. the state values
-    final int NUM_MCTS_ITERS = 100;
+    private int numMCTSIters = 200;
     final double MAX_ERROR_VALUE = 3;
 
     public SelfPlayDataGenerator(Random random) {
@@ -43,7 +43,7 @@ public class SelfPlayDataGenerator {
 //                mcts.setExplorationFactor(0);
 //                endedExploration = true;
 //            }
-            MCTSResult<CheckersMove> result = mcts.search(game, NUM_MCTS_ITERS, true);
+            MCTSResult<CheckersMove> result = mcts.search(game, numMCTSIters, true);
 
             // Store training example
             trainingExamples.add(new TrainingExample(
@@ -86,7 +86,7 @@ public class SelfPlayDataGenerator {
 
         while (!game.isTerminated()) {
             if (game.isPlayer1Turn() == playerIsPlayer1) {
-                MCTSResult<CheckersMove> result = mcts.search(game, NUM_MCTS_ITERS, true);
+                MCTSResult<CheckersMove> result = mcts.search(game, numMCTSIters, true);
 
                 // Store training example
                 trainingExamples.add(new TrainingExample(
@@ -105,7 +105,7 @@ public class SelfPlayDataGenerator {
                 mcts.advanceToMove(result.chosenMove);
                 opponentMCTS.advanceToMove(result.chosenMove);
             } else {
-                MCTSResult<CheckersMove> result = opponentMCTS.search(game, NUM_MCTS_ITERS, true);
+                MCTSResult<CheckersMove> result = opponentMCTS.search(game, numMCTSIters, true);
 
                 // do not store training example for opponent moves
 
@@ -125,5 +125,9 @@ public class SelfPlayDataGenerator {
         }
 
         return new GameResult(trainingExamples, playerScore, playerIsPlayer1);
+    }
+
+    public void setNumMCTSIters(int numMCTSIters) {
+        this.numMCTSIters = numMCTSIters;
     }
 }

@@ -8,13 +8,13 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class CheckersRLTrainer {
-    private static final int replayHistorySize = 4 * 1024 * 1024; // TODO AlphaGoZero uses 500k games! That's about 40MM positions
+    private static final int replayHistorySize = 2 * 1024 * 1024; // TODO AlphaGoZero uses 500k games! That's about 40MM positions
     private static final long NN_CHECKPOINT_INTERVAL_MS = 1000 * 60 * 5; // 5 minutes
     private static final int INITIAL_TRAINING_MIN_POSITIONS = 128 * 1024;
     private Random random;
     private CheckersValueNN trainingNN;
     private ReplayHistory replayHistory;
-    final int miniBatchSize = 32;
+    final int miniBatchSize = 256;
     private List<CheckersValueNN> oldNNs = new ArrayList<>();
     private final int MAX_NUM_OLD_NNS = 50;
     private int numGameThreads = 2;

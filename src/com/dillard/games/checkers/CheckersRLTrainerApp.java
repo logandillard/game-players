@@ -36,10 +36,12 @@ public class CheckersRLTrainerApp {
         // add evaluations at specific game states
 
         CheckersValueNN nn = loadOrDefaultNN(nnFilename);
-//        nn.getNN().setLearningRate(0.001);
+//        nn.getNN().setLearningRate(0.00001);
         if (!doTraining) {
             System.out.println("Evaluating...");
-            evaluate(nn, 100, 4);
+            for (int i=0; i<10; i++) {
+                evaluate(nn, 500, 4);
+            }
             return;
         }
 
@@ -58,7 +60,7 @@ public class CheckersRLTrainerApp {
 //                    trainingMinutesPerIteration, nn, replayHistory);
             System.out.println(String.format("Trained total %d minutes", (iter+1) * trainingMinutesPerIteration));
             System.out.println("Evaluating...");
-            evaluate(nn, 100, 4);
+            evaluate(nn, 200, 4);
         }
     }
 
@@ -149,7 +151,7 @@ public class CheckersRLTrainerApp {
                 new NNCheckersPlayer(nn),
                 () -> new ABPruningPlayer<CheckersMove, CheckersGame>(abPruningDepth, new Random(7349)),
                 ngames,
-                new Random(432));
+                new Random());
         System.out.println(String.format(
                 "Evaluation vs ABPruningPlayer(%d): %s",
                 abPruningDepth,

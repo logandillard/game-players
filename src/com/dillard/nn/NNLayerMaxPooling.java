@@ -1,5 +1,7 @@
 package com.dillard.nn;
 
+import java.util.List;
+
 public class NNLayerMaxPooling implements NNLayer {
     private final int numInputs;
     private final int layerSize;
@@ -72,17 +74,34 @@ public class NNLayerMaxPooling implements NNLayer {
         return inputNodeGradient;
     }
 
-    @Override
     public double[] accumulateGradients(double[] errorGradient) {
         return backprop(errorGradient);
     }
 
-    @Override
     public void applyAccumulatedGradients() {
     }
 
 
     @Override
     public void setLearningRate(double lr) {
+    }
+
+    @Override
+    public ActivationFunction getActivationFunction() {
+        return new ActivationFunctionLinear();
+    }
+
+    @Override
+    public void setActivationFunction(ActivationFunction activationFunction) {
+    }
+
+    @Override
+    public List<double[]> batchActivate(List<double[]> batchInputs) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<double[]> batchBackprop(List<double[]> batchErrorGradients) {
+        throw new UnsupportedOperationException();
     }
 }

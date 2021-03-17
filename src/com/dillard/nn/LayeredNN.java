@@ -1,6 +1,7 @@
 package com.dillard.nn;
 
 import java.io.Serializable;
+import java.util.List;
 
 public class LayeredNN implements Serializable, Cloneable {
     private static final long serialVersionUID = 1L;
@@ -58,18 +59,32 @@ public class LayeredNN implements Serializable, Cloneable {
         }
     }
 
-    public void accumulateGradients(double[] errorGradient) {
-        double[] nextLayerErrorGradient = errorGradient;
+    public List<double[]> batchActivate(List<double[]> batchInputs) {
+        for (NNLayer layer : layers) {
+            batchInputs = layer.batchActivate(batchInputs);
+        }
+        return batchInputs;
+    }
+
+    public void batchBackprop(List<double[]> batchErrorGradients) {
+        List<double[]> nextLayerErrorGradient = batchErrorGradients;
         for (int layer = layers.length - 1; layer >= 0; layer--) {
-            nextLayerErrorGradient = layers[layer].accumulateGradients(nextLayerErrorGradient);
+            nextLayerErrorGradient = layers[layer].batchBackprop(nextLayerErrorGradient);
         }
     }
 
-    public void applyAccumulatedGradients() {
-        for (int layer = layers.length - 1; layer >= 0; layer--) {
-            layers[layer].applyAccumulatedGradients();
-        }
-    }
+//    public void accumulateGradients(double[] errorGradient) {
+//        double[] nextLayerErrorGradient = errorGradient;
+//        for (int layer = layers.length - 1; layer >= 0; layer--) {
+//            nextLayerErrorGradient = layers[layer].accumulateGradients(nextLayerErrorGradient);
+//        }
+//    }
+//
+//    public void applyAccumulatedGradients() {
+//        for (int layer = layers.length - 1; layer >= 0; layer--) {
+//            layers[layer].applyAccumulatedGradients();
+//        }
+//    }
 
     public void setLearningRate(double lr) {
         for (int layer = layers.length - 1; layer >= 0; layer--) {

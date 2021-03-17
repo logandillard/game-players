@@ -10,6 +10,7 @@ import com.dillard.nn.ActivationFunctionTanH;
 import com.dillard.nn.LayeredNN;
 import com.dillard.nn.NNLayer;
 import com.dillard.nn.NNLayerFullyConnected;
+import com.dillard.nn.NNLayerFullyConnectedBN;
 import com.dillard.nn.NNLayerResidual;
 import com.dillard.nn.WeightInitializer;
 import com.dillard.nn.WeightInitializerGaussianFixedVariance;
@@ -31,18 +32,18 @@ public class CheckersValueNN implements Serializable {
 
         int nHidden = 32;
         NNLayer[] layers = new NNLayer[] {
-            new NNLayerFullyConnected(NUM_INPUTS, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
+            new NNLayerFullyConnectedBN(NUM_INPUTS, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
             new NNLayerResidual(new NNLayer[] {
-                    new NNLayerFullyConnected(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
-                    new NNLayerFullyConnected(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
+                    new NNLayerFullyConnectedBN(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
+                    new NNLayerFullyConnectedBN(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
             }),
             new NNLayerResidual(new NNLayer[] {
-                    new NNLayerFullyConnected(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
-                    new NNLayerFullyConnected(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
+                    new NNLayerFullyConnectedBN(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
+                    new NNLayerFullyConnectedBN(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
             }),
             new NNLayerResidual(new NNLayer[] {
-                    new NNLayerFullyConnected(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
-                    new NNLayerFullyConnected(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
+                    new NNLayerFullyConnectedBN(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
+                    new NNLayerFullyConnectedBN(nHidden, nHidden, new ActivationFunctionReLU(), initializer, learningRate, l2),
             }),
             new NNLayerFullyConnected(nHidden, NUM_OUTPUTS, new ActivationFunctionLinear(), initializer, learningRate, l2)
         };
@@ -190,82 +191,56 @@ public class CheckersValueNN implements Serializable {
 //        for (var te : miniBatch) {
 //            errorSumBefore += error(te);
 //        }
-        double errorSum = 0;
-
+        List<double[]> batchInputs = new ArrayList<>(miniBatch.size());
         for (var te : miniBatch) {
-            double instanceError = 0;
-            double[] outputs = nn.activate(createNNInputs(te.state.getBoardPieces(), !te.isPlayer1));
-            double stateValue = tanh.activate(outputs[0]);
-
-            // We don't need the network to learn to output zero for illegal moves,
-            // so we will give it zero error for illegal moves.
-            double[] errorGradients = new double[outputs.length];
-            // location 0 is the state value
-            errorGradients[0] = (te.finalGameValue - stateValue) * tanh.derivative(stateValue) * te.importanceWeight;
-            instanceError += (te.finalGameValue - stateValue) * (te.finalGameValue - stateValue);
-
-            List<Double> outputScores = new ArrayList<>(te.scoredMoves.size());
-            if (te.scoredMoves.size() > 1) {
-                List<Integer> indexes = new ArrayList<>(te.scoredMoves.size());
-                for (int i=0; i<te.scoredMoves.size(); i++) {
-                    var scoredMove = te.scoredMoves.get(i);
-                    int moveIdx = moveIndex(scoredMove.value);
-                    int index = moveIdx + 1; // + 1 for the state value
-                    indexes.add(index);
-
-                    double rawOutput = outputs[index];
-                    outputScores.add(rawOutput);
-                }
-
-                softmaxInPlace(outputScores);
-
-                for (int i=0; i<te.scoredMoves.size(); i++) {
-                    var scoredMove = te.scoredMoves.get(i);
-                    int index = indexes.get(i);
-                    double softmaxOutput = outputScores.get(i);
-
-                    instanceError += -scoredMove.score * Math.log(softmaxOutput);
-
-                    if ((outputs[index] <= -100 && scoredMove.score < softmaxOutput) ||
-                            (outputs[index] >= 100.0 && scoredMove.score > softmaxOutput)) {
-                        // why you gotta keep pushing???? TODO is there a way to prevent this?
-//                        System.out.println("pushing score down really low or up really high: " + outputs[index]);
-                        // we will skip. the score is extreme enough!
-                        continue;
-                    }
-
-                    errorGradients[index] = (scoredMove.score - softmaxOutput) * te.importanceWeight;
-                }
-            }
-            nn.accumulateGradients(errorGradients);
-//            nn.backprop(errorGradients);
-
-//            if (instanceError > 10) {
-//                String breakpoint= "";
-//            }
-
-            errorSum += instanceError;
-
-//            if (true) {
-//                outputs = nn.activate(createNNInputs(te.state.getBoardPieces(), !te.isPlayer1));
-//                double stateValueAfter = tanh.activate(outputs[0]);
-//
-//                List<Double> scores = new ArrayList<>();
-//                for (Scored<CheckersMove> sm : te.scoredMoves) {
-//                    int moveIndex = moveIndex(sm.value);
-//                    double score = outputs[1 + moveIndex]; // + 1 for the state value
-//                    scores.add(score);
-//                }
-//                softmaxInPlace(scores);
-//
-//                if (true) {
-//                    @SuppressWarnings("unused")
-//                    String s = "";
-//                }
-//            }
-
+            double[] inputs = createNNInputs(te.state.getBoardPieces(), !te.isPlayer1);
+            batchInputs.add(inputs);
         }
-        nn.applyAccumulatedGradients();
+        double errorSum = 0;
+        List<double[]> batchOutputs = nn.batchActivate(batchInputs);
+        List<double[]> batchErrorGradients = new ArrayList<>(miniBatch.size());
+        for (int i=0; i<miniBatch.size(); i++) {
+            var te = miniBatch.get(i);
+            double[] outputs = batchOutputs.get(i);
+            double[] errorGradients = new double[NUM_OUTPUTS];
+            double instanceError = computeErrorGradients(te, outputs, errorGradients);
+            errorSum += instanceError;
+            batchErrorGradients.add(errorGradients);
+        }
+
+        nn.batchBackprop(batchErrorGradients);
+
+//        for (var te : miniBatch) {
+////            double[] inputs = createNNInputs(te.state.getBoardPieces(), !te.isPlayer1);
+////            double[] outputs = nn.activate(inputs);
+//
+//            double[] errorGradients = new double[outputs.length];
+//            double instanceError = computeErrorGradients(te, outputs, errorGradients);
+//
+//            nn.accumulateGradients(errorGradients);
+////            nn.backprop(errorGradients);
+//
+//            errorSum += instanceError;
+//
+////            if (true) {
+////                outputs = nn.activate(createNNInputs(te.state.getBoardPieces(), !te.isPlayer1));
+////                double stateValueAfter = tanh.activate(outputs[0]);
+////
+////                List<Double> scores = new ArrayList<>();
+////                for (Scored<CheckersMove> sm : te.scoredMoves) {
+////                    int moveIndex = moveIndex(sm.value);
+////                    double score = outputs[1 + moveIndex]; // + 1 for the state value
+////                    scores.add(score);
+////                }
+////                softmaxInPlace(scores);
+////
+////                if (true) {
+////                    @SuppressWarnings("unused")
+////                    String s = "";
+////                }
+////            }
+//        }
+//        nn.applyAccumulatedGradients();
 
 //        double errorSumAfter = 0;
 //        for (var te : miniBatch) {
@@ -278,6 +253,51 @@ public class CheckersValueNN implements Serializable {
 
 //        System.out.println(String.format("%.3f", errorSum / miniBatch.size()));
         return errorSum;
+    }
+
+    private double computeErrorGradients(TrainingExample te, double[] outputs, double[] errorGradients) {
+        double instanceError = 0;
+        double stateValue = tanh.activate(outputs[0]);
+
+        // location 0 is the state value
+        errorGradients[0] = (te.finalGameValue - stateValue) * tanh.derivative(stateValue) * te.importanceWeight;
+        instanceError += (te.finalGameValue - stateValue) * (te.finalGameValue - stateValue);
+
+        List<Double> outputScores = new ArrayList<>(te.scoredMoves.size());
+        if (te.scoredMoves.size() > 1) {
+            // We don't need the network to learn to output zero for illegal moves,
+            // so we will give it zero error for illegal moves.
+            List<Integer> indexes = new ArrayList<>(te.scoredMoves.size());
+            for (int i=0; i<te.scoredMoves.size(); i++) {
+                var scoredMove = te.scoredMoves.get(i);
+                int moveIdx = moveIndex(scoredMove.value);
+                int index = moveIdx + 1; // + 1 for the state value
+                indexes.add(index);
+
+                double rawOutput = outputs[index];
+                outputScores.add(rawOutput);
+            }
+
+            softmaxInPlace(outputScores);
+
+            for (int i=0; i<te.scoredMoves.size(); i++) {
+                var scoredMove = te.scoredMoves.get(i);
+                int index = indexes.get(i);
+                double softmaxOutput = outputScores.get(i);
+
+                instanceError += -scoredMove.score * Math.log(softmaxOutput);
+
+                if ((outputs[index] <= -100 && scoredMove.score < softmaxOutput) ||
+                        (outputs[index] >= 100.0 && scoredMove.score > softmaxOutput)) {
+                    // why you gotta keep pushing???? is there a way to prevent this?
+                    // we will skip. the score is extreme enough!
+                    continue;
+                }
+
+                errorGradients[index] = (scoredMove.score - softmaxOutput) * te.importanceWeight;
+            }
+        }
+        return instanceError;
     }
 
     public LayeredNN getNN() {
