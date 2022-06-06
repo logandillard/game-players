@@ -209,8 +209,7 @@ public class HRGame {
                     for (Card c: newCards) cardWrappers.add(new CardWrapper(c));
 
                     // Discard
-                    List<CardWrapper> unplayed = cardWrappers.stream().filter(wr -> !wr.hasPlayed).collect(Collectors.toList());
-                    discardCardWrappers(unplayed, 1);
+                    discardUnplayedCardWrappers(cardWrappers, 1);
                     cardsDrawn++;
                 }
 
@@ -620,13 +619,18 @@ public class HRGame {
         return hand;
     }
 
-    private List<CardWrapper> discardCardWrappers(List<CardWrapper> wrappers, int cardsToDiscard) {
+    private List<CardWrapper> discardUnplayedCardWrappers(List<CardWrapper> wrappers, int cardsToDiscard) {
         if (cardsToDiscard > 0) {
             Collections.sort(wrappers, new Cards.WrapperDiscardComparator());
-            while (cardsToDiscard > 0 && wrappers.size() > 0) {
-                if (logChanges) System.out.println("Discarding " + wrappers.get(0).card);
-                wrappers.remove(0);
-                cardsToDiscard--;
+            for (int i=0; i<wrappers.size() && cardsToDiscard > 0; i++) {
+            	if (wrappers.get(i).hasPlayed) {
+            		continue;
+            	} else {
+            		if (logChanges) System.out.println("Discarding " + wrappers.get(i).card);
+            		wrappers.remove(i);
+            		cardsToDiscard--;
+            		i--;
+            	}
             }
         }
         return wrappers;

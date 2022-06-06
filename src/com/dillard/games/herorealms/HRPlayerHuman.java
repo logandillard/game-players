@@ -84,7 +84,7 @@ public class HRPlayerHuman implements HRPlayer {
                     return null;
                 }
                 return cards.get(choice - 1);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
 
